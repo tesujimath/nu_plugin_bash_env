@@ -1,0 +1,196 @@
+#!/usr/bin/env bash
+
+function send_encoder() {
+    echo -en "\04json"
+}
+
+function send_signature() {
+    cat <<EOF | jq -c | tr -d '\n'
+{
+  "Signature": [
+    {
+    "sig": {
+      "name": "bash-env",
+      "usage": "get environment variables from a Bash environment file",
+      "extra_usage": "",
+      "search_terms": [],
+      "required_positional": [
+        {
+        "name": "path",
+        "desc": "path to environment file",
+        "shape": "String",
+        "var_id": null,
+        "default_value": null
+      }
+      ],
+      "optional_positional": [],
+      "rest_positional": null,
+      "vectorizes_over_list": false,
+      "named": [],
+      "input_output_types": [],
+      "allow_variants_without_examples": true,
+      "is_filter": false,
+      "creates_scope": false,
+      "allows_unknown_args":false,
+      "category":"Default"
+    },
+    "examples": []
+  }
+  ]
+}
+EOF
+}
+
+function send_environment() {
+    local LOG=/tmp/nu_plugin_bash_env.log
+    local _n_env _head _tail _name
+    _n_env=$#
+
+    _head="$1"
+    shift
+    _tail="$@"
+
+    # header
+    echo -n '{"Value":{"Record":{"val":{"cols":['
+
+    # names
+    if test $_n_env -gt 0; then
+        echo -n "\"$_head\""
+        echo >>$LOG "_head is '$_head'"
+
+        for _name in $_tail; do
+            echo -n ",\"$_name\""
+            echo >>$LOG "_tail member is '$_name'"
+        done
+    fi
+
+    # terminate names, start values
+    echo -n '],"vals":['
+
+    # values
+    if test $_n_env -gt 0; then
+        echo >>$LOG "_head is '$_head'"
+        echo -n '{"String":{"val":'
+        echo ${!_head} | jq -R
+        echo -n ',"internal_span":{"start":0,"end":0}}}'
+
+        for _name in $_tail; do
+            if test -v $_name; then
+                echo >>$LOG "_name is '$_name'"
+                echo -n ',{"String":{"val":'
+                echo ${!_name} | jq -R
+                echo -n ',"internal_span":{"start":0,"end":0}}}'
+            else
+                # unset, TODO
+                :
+            fi
+        done
+    fi
+
+    # trailer
+    echo ']},"internal_span":{"start":0,"end":0}}}}'
+}
+
+function send_error() {
+    cat <<EOF
+{
+  "Error": {
+    "label": "bash-env",
+    "msg": "$1",
+    "internal_span": {
+      "start": 0,
+      "end": 0
+    }
+  }
+}
+EOF
+}
+
+function source_and_send_environment() {
+    local LOG=/tmp/nu_plugin_bash_env.log
+    local _path _name _value _env_old _env_new _env_changed_or_unset
+    _path="$1"
+
+    if test ! -r "$_path"; then
+        send_error "no such file '$_path'"
+    else
+        # get previous env
+        declare -A _env_old
+        while IFS='=' read -r -d '' _name _value; do
+            _env_old[$_name]="${_value@Q}"
+        done < <(env -0)
+
+        if source "$_path"; then
+
+            # get new environment
+            declare -A _env_new
+            while IFS='=' read -r -d '' _name _value; do
+                _env_new[$_name]="${_value@Q}"
+            done < <(env -0)
+
+            # determine what changed or became unset
+            declare -a _env_changed_or_unset
+
+            # changes
+            for _name in "${!_env_new[@]}"; do
+                if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
+                    _env_changed_or_unset+=($_name)
+                    echo >>$LOG "found changed $_name, old='${_env_old[$_name]}' new='${_env_new[$_name]}'"
+                fi
+            done
+
+            # unset
+            for _name in "${!_env_old[@]}"; do
+                if test ! -v $_name; then
+                    _env_changed_or_unset+=($_name)
+                    echo >>$LOG "found unset $_name"
+                fi
+            done
+
+            echo >>$LOG "requesting send ${_env_changed_or_unset[@]}"
+            send_environment ${_env_changed_or_unset[@]} | jq -c
+
+        else
+            send_error "failed to load environment from '$_path'"
+        fi
+    fi
+}
+
+function run_as_plugin() {
+    local LOG=/tmp/nu_plugin_bash_env.log
+    local _path
+    echo >>$LOG "sending encoder"
+    send_encoder
+
+    while true; do
+        echo >>$LOG "awaiting input"
+        read -rs line
+
+        # blank line handling
+        if test -z "$line"; then
+            echo >>$LOG "blank line, terminating"
+            break
+        fi
+
+        case "$line" in
+            *Signature*)
+                echo >>$LOG "sending signature"
+                send_signature
+                ;;
+            *CallInfo*)
+                _path=$(echo $line | jq -r '.CallInfo.call.positional[0].String.val')
+                source_and_send_environment "$_path"
+                ;;
+        esac
+    done
+
+    echo >>$LOG "plugin terminating"
+}
+
+if test $# -eq 0; then
+    run_as_plugin
+elif test "$1" == "--to-json" && test -r "$2"; then
+    source_and_send_environment "$2"
+else
+    echo "usage: nu_plugin_bash_env [--to-json <env-file>]"
+fi
