@@ -13,6 +13,10 @@ Then in Nu:
 
 The plugin reads the specified environment file and returns any new or changed environment variables as a record, suitable for passing to Nu's `load-env`.
 
+## Dependencies
+
+The script uses `jq` for heavy lifting.
+
 ## Examples
 
 ### Simple Usage
