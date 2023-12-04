@@ -42,7 +42,6 @@ EOF
 }
 
 function send_environment() {
-    local LOG=/tmp/nu_plugin_bash_env.log
     local _n_env _head _tail _name
     _n_env=$#
 
@@ -56,11 +55,9 @@ function send_environment() {
     # names
     if test $_n_env -gt 0; then
         echo -n "\"$_head\""
-        echo >>$LOG "_head is '$_head'"
 
         for _name in $_tail; do
             echo -n ",\"$_name\""
-            echo >>$LOG "_tail member is '$_name'"
         done
     fi
 
@@ -69,14 +66,12 @@ function send_environment() {
 
     # values
     if test $_n_env -gt 0; then
-        echo >>$LOG "_head is '$_head'"
         echo -n '{"String":{"val":'
         echo ${!_head} | jq -R
         echo -n ',"internal_span":{"start":0,"end":0}}}'
 
         for _name in $_tail; do
             if test -v $_name; then
-                echo >>$LOG "_name is '$_name'"
                 echo -n ',{"String":{"val":'
                 echo ${!_name} | jq -R
                 echo -n ',"internal_span":{"start":0,"end":0}}}'
@@ -107,7 +102,6 @@ EOF
 }
 
 function source_and_send_environment() {
-    local LOG=/tmp/nu_plugin_bash_env.log
     local _path _name _value _env_old _env_new _env_changed_or_unset
     _path="$1"
 
@@ -135,7 +129,6 @@ function source_and_send_environment() {
             for _name in "${!_env_new[@]}"; do
                 if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
                     _env_changed_or_unset+=($_name)
-                    echo >>$LOG "found changed $_name, old='${_env_old[$_name]}' new='${_env_new[$_name]}'"
                 fi
             done
 
@@ -143,11 +136,9 @@ function source_and_send_environment() {
             for _name in "${!_env_old[@]}"; do
                 if test ! -v $_name; then
                     _env_changed_or_unset+=($_name)
-                    echo >>$LOG "found unset $_name"
                 fi
             done
 
-            echo >>$LOG "requesting send ${_env_changed_or_unset[@]}"
             send_environment ${_env_changed_or_unset[@]} | jq -c
 
         else
@@ -157,24 +148,19 @@ function source_and_send_environment() {
 }
 
 function run_as_plugin() {
-    local LOG=/tmp/nu_plugin_bash_env.log
     local _path
-    echo >>$LOG "sending encoder"
     send_encoder
 
     while true; do
-        echo >>$LOG "awaiting input"
         read -rs line
 
         # blank line handling
         if test -z "$line"; then
-            echo >>$LOG "blank line, terminating"
             break
         fi
 
         case "$line" in
             *Signature*)
-                echo >>$LOG "sending signature"
                 send_signature
                 ;;
             *CallInfo*)
@@ -183,8 +169,6 @@ function run_as_plugin() {
                 ;;
         esac
     done
-
-    echo >>$LOG "plugin terminating"
 }
 
 if test $# -eq 0; then
