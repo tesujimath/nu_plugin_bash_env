@@ -4,7 +4,7 @@ A Bash environment plugin for Nushell.
 
 For instructions on how to use this plugin, see the [Nushell book](https://www.nushell.sh/book/plugins.html).
 
-In summary, save the `nu_plugin_bash_env` script somewhere on your path and ensure it is executable.
+In summary, save the `nu_plugin_bash_env` script in your Nu plugins directory (for example) and ensure it is executable.
 For users of Nix, this is now installable as a flake (see below).
 
 Then in Nu:
