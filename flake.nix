@@ -13,6 +13,9 @@
           pkgs = import nixpkgs {
             inherit system;
           };
+          nu_plugin_bash_env = pkgs.writeShellScriptBin "nu_plugin_bash_env"
+            (builtins.replaceStrings ["jq"] ["${pkgs.jq}/bin/jq"]
+              (builtins.readFile ./nu_plugin_bash_env));
         in
           with pkgs;
           {
@@ -21,6 +24,7 @@
                 jq
               ];
             };
+            packages.default = nu_plugin_bash_env;
           }
       );
 }
