@@ -5,6 +5,7 @@ A Bash environment plugin for Nushell.
 For instructions on how to use this plugin, see the [Nushell book](https://www.nushell.sh/book/plugins.html).
 
 In summary, save the `nu_plugin_bash_env` script somewhere on your path and ensure it is executable.
+For users of Nix, this is now installable as a flake (see below).
 
 Then in Nu:
 ```
@@ -67,12 +68,15 @@ Care has been taken to escape any special characters.
 "Well done!" is better than "Well said!"
 ```
 
+## Nix flake
+
+The plugin is installable from its flake using Nix Home Manager.
+See my own [Home Manager flake](https://github.com/tesujimath/home.nix/blob/main/flake.nix#L12) and [packages.nix](https://github.com/tesujimath/home.nix/blob/main/packages.nix#L59) for hints how to achieve this.
+
 ## Notes
 
 All local variables in the script are prefixed with underscore, in an attempt to mitigate Bash's inability to distinguish variables local to the shell and environment variables, but this is by no means bulletproof.
 
-
 ## Future work
 
 - unsetting an environment variable ought to be possible
-- package as an installable Nix flake
