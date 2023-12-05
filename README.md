@@ -71,7 +71,7 @@ Care has been taken to escape any special characters.
 ## Nix flake
 
 The plugin is installable from its flake using Nix Home Manager.
-See my own [Home Manager flake](https://github.com/tesujimath/home.nix/blob/main/flake.nix#L12) and [packages.nix](https://github.com/tesujimath/home.nix/blob/main/packages.nix#L59) for hints how to achieve this.
+See my own [Home Manager flake](https://github.com/tesujimath/home.nix/blob/main/flake.nix#L12) and [nushell module](https://github.com/tesujimath/home.nix/blob/main/modules/nushell/default.nix) for hints how to achieve this.
 
 ## Notes
 
