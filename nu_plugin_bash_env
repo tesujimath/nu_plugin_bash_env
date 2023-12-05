@@ -28,7 +28,7 @@ function send_encoder() {
 }
 
 function send_signature() {
-    cat <<EOF | jq -c | tr -d '\n'
+    jq -c <<EOF | tr -d '\n'
 {
   "Signature": [
     {
@@ -110,7 +110,7 @@ function send_environment() {
 }
 
 function send_error() {
-    cat <<EOF
+    jq -c <<EOF
 {
   "Error": {
     "label": "bash-env",
