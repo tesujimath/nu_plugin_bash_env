@@ -28,7 +28,7 @@ function send_encoder() {
 }
 
 function send_signature() {
-    jq -c <<EOF | tr -d '\n'
+    jq -c <<EOF
 {
   "Signature": [
     {
