@@ -126,7 +126,8 @@ EOF
 
 function source_and_send_environment() {
     local _path _name _value _env_old _env_new _env_changed_or_unset
-    _path="$1"
+    # Nushell may pass through ~ verbatim which we must cope with explicitly
+    _path="${1/#\~/$HOME}"
 
     if test ! -r "$_path"; then
         send_error "no such file '$_path'"
@@ -196,7 +197,7 @@ function run_as_plugin() {
 
 if test $# -eq 0; then
     run_as_plugin
-elif test "$1" == "--to-json" && test -r "$2"; then
+elif test "$1" == "--to-json" && test -n "$2"; then
     source_and_send_environment "$2"
 else
     echo "usage: nu_plugin_bash_env [--to-json <env-file>]"
