@@ -37,25 +37,25 @@ function send_signature() {
       "usage": "get environment variables from a Bash environment file",
       "extra_usage": "",
       "search_terms": [],
-      "required_positional": [
+      "required_positional": [],
+      "optional_positional": [
         {
-        "name": "path",
-        "desc": "path to environment file",
-        "shape": "String",
-        "var_id": null,
-        "default_value": null
-      }
+            "name": "path",
+            "desc": "path to environment file",
+            "shape": "String",
+            "var_id": null,
+            "default_value": null
+        }
       ],
-      "optional_positional": [],
       "rest_positional": null,
       "vectorizes_over_list": false,
       "named": [],
-      "input_output_types": [],
+      "input_output_types": [ [ "Nothing", "Any" ], [ "String", "Any" ] ],
       "allow_variants_without_examples": true,
       "is_filter": false,
       "creates_scope": false,
       "allows_unknown_args":false,
-      "category":"Default"
+      "category":"Env"
     },
     "examples": []
   }
@@ -124,6 +124,48 @@ function send_error() {
 EOF
 }
 
+function eval_and_send_environment() {
+    local _source _name _value _env_old _env_new _env_changed_or_unset
+    # Nushell may pass through ~ verbatim which we must cope with explicitly
+    read _source;
+
+    # get previous env
+    declare -A _env_old
+    while IFS='=' read -r -d '' _name _value; do
+        _env_old[$_name]="${_value@Q}"
+    done < <(env -0)
+
+    if eval "$_source"; then
+        # get new environment
+        declare -A _env_new
+        while IFS='=' read -r -d '' _name _value; do
+            _env_new[$_name]="${_value@Q}"
+        done < <(env -0)
+
+        # determine what changed or became unset
+        declare -a _env_changed_or_unset
+
+        # changes
+        for _name in "${!_env_new[@]}"; do
+            if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
+                _env_changed_or_unset+=($_name)
+            fi
+        done
+
+        # unset
+        for _name in "${!_env_old[@]}"; do
+            if test ! -v $_name; then
+                _env_changed_or_unset+=($_name)
+            fi
+        done
+
+        send_environment ${_env_changed_or_unset[@]} | jq -c
+
+    else
+        send_error "failed to load environment from stdin"
+    fi
+}
+
 function source_and_send_environment() {
     local _path _name _value _env_old _env_new _env_changed_or_unset
     # Nushell may pass through ~ verbatim which we must cope with explicitly
@@ -131,43 +173,44 @@ function source_and_send_environment() {
 
     if test ! -r "$_path"; then
         send_error "no such file '$_path'"
-    else
-        # get previous env
-        declare -A _env_old
+        return
+    fi
+
+    # get previous env
+    declare -A _env_old
+    while IFS='=' read -r -d '' _name _value; do
+        _env_old[$_name]="${_value@Q}"
+    done < <(env -0)
+
+    if source "$_path"; then
+
+        # get new environment
+        declare -A _env_new
         while IFS='=' read -r -d '' _name _value; do
-            _env_old[$_name]="${_value@Q}"
+            _env_new[$_name]="${_value@Q}"
         done < <(env -0)
 
-        if source "$_path"; then
+        # determine what changed or became unset
+        declare -a _env_changed_or_unset
 
-            # get new environment
-            declare -A _env_new
-            while IFS='=' read -r -d '' _name _value; do
-                _env_new[$_name]="${_value@Q}"
-            done < <(env -0)
+        # changes
+        for _name in "${!_env_new[@]}"; do
+            if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
+                _env_changed_or_unset+=($_name)
+            fi
+        done
 
-            # determine what changed or became unset
-            declare -a _env_changed_or_unset
+        # unset
+        for _name in "${!_env_old[@]}"; do
+            if test ! -v $_name; then
+                _env_changed_or_unset+=($_name)
+            fi
+        done
 
-            # changes
-            for _name in "${!_env_new[@]}"; do
-                if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
-                    _env_changed_or_unset+=($_name)
-                fi
-            done
+        send_environment ${_env_changed_or_unset[@]} | jq -c
 
-            # unset
-            for _name in "${!_env_old[@]}"; do
-                if test ! -v $_name; then
-                    _env_changed_or_unset+=($_name)
-                fi
-            done
-
-            send_environment ${_env_changed_or_unset[@]} | jq -c
-
-        else
-            send_error "failed to load environment from '$_path'"
-        fi
+    else
+        send_error "failed to load environment from '$_path'"
     fi
 }
 
@@ -188,8 +231,18 @@ function run_as_plugin() {
                 send_signature
                 ;;
             *CallInfo*)
+                echo "pos" $line >> /home/fazbdillah/debug.txt
                 _path=$(echo $line | jq -r '.CallInfo.call.positional[0].String.val')
-                source_and_send_environment "$_path"
+                _stdinval=$(echo $line | jq -r '.CallInfo.input.Value.String.val')
+                echo "path" $_path $(echo ${#_path}) >> /home/fazbdillah/debug.txt
+                echo "stdin" $_stdinval $(echo ${#_stdinval}) >> /home/fazbdillah/debug.txt
+                if [[ "$_stdinval" != "null" ]]; then
+                    echo "eval the input!" >> /home/fazbdillah/debug.txt
+                    echo $_stdinval | eval_and_send_environment
+                elif [[ "$_path" != "null" ]]; then
+                    echo "source the path!" >> /home/fazbdillah/debug.txt
+                    source_and_send_environment "$_path"
+                fi;
                 ;;
         esac
     done
