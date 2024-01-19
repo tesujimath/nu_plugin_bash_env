@@ -215,7 +215,7 @@ function source_and_send_environment() {
 }
 
 function run_as_plugin() {
-    local _path
+    local _path _stdinval
     send_encoder
 
     while true; do
@@ -231,16 +231,11 @@ function run_as_plugin() {
                 send_signature
                 ;;
             *CallInfo*)
-                echo "pos" $line >> /home/fazbdillah/debug.txt
                 _path=$(echo $line | jq -r '.CallInfo.call.positional[0].String.val')
                 _stdinval=$(echo $line | jq -r '.CallInfo.input.Value.String.val')
-                echo "path" $_path $(echo ${#_path}) >> /home/fazbdillah/debug.txt
-                echo "stdin" $_stdinval $(echo ${#_stdinval}) >> /home/fazbdillah/debug.txt
                 if [[ "$_stdinval" != "null" ]]; then
-                    echo "eval the input!" >> /home/fazbdillah/debug.txt
                     echo $_stdinval | eval_and_send_environment
                 elif [[ "$_path" != "null" ]]; then
-                    echo "source the path!" >> /home/fazbdillah/debug.txt
                     source_and_send_environment "$_path"
                 fi;
                 ;;
