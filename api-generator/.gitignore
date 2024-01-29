@@ -1,0 +1,5 @@
+/Cargo.lock
+/.direnv/
+/target/
+/flamegraph.svg
+/perf.data*
