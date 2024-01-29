@@ -34,7 +34,7 @@ function send_signature() {
     {
       "sig": {
         "name": "bash-env",
-        "usage": "get environment variables from a Bash environment file",
+        "usage": "get environment variables from Bash format file and/or stdin",
         "extra_usage": "",
         "search_terms": [],
         "required_positional": [],
@@ -142,94 +142,63 @@ function send_error() {
 EOF
 }
 
-function eval_and_send_environment() {
-    local _source _name _value _env_old _env_new _env_changed_or_unset
-    # Nushell may pass through ~ verbatim which we must cope with explicitly
-    read _source;
+function eval_and_or_source_then_send_environment() {
+    local _source _path _name _value _env_old _env_new _env_changed_or_unset
 
-    # get previous env
-    declare -A _env_old
-    while IFS='=' read -r -d '' _name _value; do
-        _env_old[$_name]="${_value@Q}"
-    done < <(env -0)
-
-    if eval "$_source"; then
-        # get new environment
-        declare -A _env_new
-        while IFS='=' read -r -d '' _name _value; do
-            _env_new[$_name]="${_value@Q}"
-        done < <(env -0)
-
-        # determine what changed or became unset
-        declare -a _env_changed_or_unset
-
-        # changes
-        for _name in "${!_env_new[@]}"; do
-            if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
-                _env_changed_or_unset+=($_name)
-            fi
-        done
-
-        # unset
-        for _name in "${!_env_old[@]}"; do
-            if test ! -v $_name; then
-                _env_changed_or_unset+=($_name)
-            fi
-        done
-
-        send_environment ${_env_changed_or_unset[@]} | jq -c
-
-    else
-        send_error "failed to load environment from stdin"
-    fi
-}
-
-function source_and_send_environment() {
-    local _path _name _value _env_old _env_new _env_changed_or_unset
     # Nushell may pass through ~ verbatim which we must cope with explicitly
     _path="${1/#\~/$HOME}"
 
-    if test ! -r "$_path"; then
-        send_error "no such file '$_path'"
-        return
-    fi
-
     # get previous env
     declare -A _env_old
     while IFS='=' read -r -d '' _name _value; do
         _env_old[$_name]="${_value@Q}"
     done < <(env -0)
 
-    if source "$_path"; then
+    # source from file
+    if test -n "$_path"; then
 
-        # get new environment
-        declare -A _env_new
-        while IFS='=' read -r -d '' _name _value; do
-            _env_new[$_name]="${_value@Q}"
-        done < <(env -0)
+        if test ! -r "$_path"; then
+            send_error "no such file '$_path'"
+            return
+        fi
 
-        # determine what changed or became unset
-        declare -a _env_changed_or_unset
-
-        # changes
-        for _name in "${!_env_new[@]}"; do
-            if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
-                _env_changed_or_unset+=($_name)
-            fi
-        done
-
-        # unset
-        for _name in "${!_env_old[@]}"; do
-            if test ! -v $_name; then
-                _env_changed_or_unset+=($_name)
-            fi
-        done
-
-        send_environment ${_env_changed_or_unset[@]} | jq -c
-
-    else
-        send_error "failed to load environment from '$_path'"
+        if ! source "$_path"; then
+            send_error "failed to load environment from '$_path'"
+            return 1
+        fi
     fi
+
+    # eval from stdin
+    read _source;
+    if ! eval "$_source"; then
+        send_error "failed to load environment from stdin"
+        return 1
+    fi
+
+    # get new environment
+    declare -A _env_new
+    while IFS='=' read -r -d '' _name _value; do
+        _env_new[$_name]="${_value@Q}"
+    done < <(env -0)
+
+    # determine what changed or became unset
+    declare -a _env_changed_or_unset
+
+    # changes
+    for _name in "${!_env_new[@]}"; do
+        if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
+            _env_changed_or_unset+=($_name)
+        fi
+    done
+
+    # unset
+    for _name in "${!_env_old[@]}"; do
+        if test ! -v $_name; then
+            _env_changed_or_unset+=($_name)
+        fi
+    done
+
+    send_environment ${_env_changed_or_unset[@]} | jq -c
 }
 
 function run_as_plugin() {
@@ -249,13 +218,9 @@ function run_as_plugin() {
                 send_signature
                 ;;
             *CallInfo*)
-                _path=$(echo $_line | jq -r '.CallInfo.call.positional[0].String.val')
-                _stdinval=$(echo $_line | jq -r '.CallInfo.input.Value.String.val')
-                if [[ "$_stdinval" != "null" ]]; then
-                    echo $_stdinval | eval_and_send_environment
-                elif [[ "$_path" != "null" ]]; then
-                    source_and_send_environment "$_path"
-                fi;
+                _path=$(echo $_line | jq -r '.CallInfo.call.positional[0].String.val // empty')
+                _stdinval=$(echo $_line | jq -r '.CallInfo.input.Value.String.val // empty')
+                echo "$_stdinval" | eval_and_or_source_then_send_environment "$_path"
                 ;;
         esac
     done
@@ -263,8 +228,8 @@ function run_as_plugin() {
 
 if test $# -eq 0; then
     run_as_plugin
-elif test "$1" == "--to-json" && test -n "$2"; then
-    source_and_send_environment "$2"
+elif test "$1" == "--to-json"; then
+    eval_and_or_source_then_send_environment "$2"
 else
     echo "usage: nu_plugin_bash_env [--to-json <env-file>]"
 fi
