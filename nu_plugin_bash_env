@@ -162,15 +162,15 @@ function eval_and_or_source_then_send_environment() {
             return
         fi
 
-        if ! source "$_path"; then
+        if ! source "$_path" >&2; then
             send_error "failed to load environment from '$_path'"
             return 1
         fi
     fi
 
-    # eval from stdin
-    read _source;
-    if ! eval "$_source"; then
+    # eval from stdin until EOF
+    _source=$(cat);
+    if ! eval "$_source" >&2; then
         send_error "failed to load environment from stdin"
         return 1
     fi
@@ -219,7 +219,7 @@ function run_as_plugin() {
                 ;;
             *CallInfo*)
                 _path=$(echo $_line | jq -r '.CallInfo.call.positional[0].String.val // empty')
-                _stdinval=$(echo $_line | jq -r '.CallInfo.input.Value.String.val // empty')
+                _stdinval=$(echo $_line | jq -r '.CallInfo.input.Value.String.val // empty' | sed -e 's/\\n/\n/g')
                 echo "$_stdinval" | eval_and_or_source_then_send_environment "$_path"
                 ;;
         esac

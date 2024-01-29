@@ -21,6 +21,7 @@
           {
             devShells.default = mkShell {
               nativeBuildInputs = [
+                bashInteractive
                 jq
               ];
             };

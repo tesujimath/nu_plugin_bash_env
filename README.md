@@ -12,7 +12,7 @@ Then in Nu:
 > register nu_plugin_bash_env
 ```
 
-The plugin reads the specified environment file and returns any new or changed environment variables as a record, suitable for passing to Nu's `load-env`.
+The plugin reads the specified environment file (if any) and evaluates variables from `stdin` (if any) and returns any new or changed environment variables as a record, suitable for passing to Nu's `load-env`.
 
 ## Dependencies
 
@@ -49,6 +49,12 @@ b
 
 # no new or changed environment variables, so nothing returned
 
+> ssh-agent | bash-env
+Agent pid 98985
+╭───────────────┬───────────────────────────────────╮
+│ SSH_AUTH_SOCK │ /tmp/ssh-XXXXXXFIMT9y/agent.98982 │
+│ SSH_AGENT_PID │ 98985                             │
+╰───────────────┴───────────────────────────────────╯
 ```
 
 ### Escaping Special Characters
