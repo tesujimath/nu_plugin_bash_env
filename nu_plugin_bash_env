@@ -70,7 +70,7 @@ function send_signature() {
           ]
         ],
         "allow_variants_without_examples": true,
-        "is_filter": false,
+        "is_filter": true,
         "creates_scope": false,
         "allows_unknown_args": false,
         "category": "Env"

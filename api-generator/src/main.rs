@@ -18,6 +18,7 @@ impl Plugin for BashEnv {
             .category(Category::Env)
             .optional("path", SyntaxShape::String, "path to environment file")
             .input_output_types(vec![(Type::Nothing, Type::Any), (Type::String, Type::Any)])
+            .filter()
             .allow_variants_without_examples(true)]
     }
 
