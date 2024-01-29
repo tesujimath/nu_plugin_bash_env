@@ -233,24 +233,24 @@ function source_and_send_environment() {
 }
 
 function run_as_plugin() {
-    local _path _stdinval
+    local _line _path _stdinval
     send_encoder
 
     while true; do
-        read -rs line
+        read -rs _line
 
         # blank line handling
-        if test -z "$line"; then
+        if test -z "$_line"; then
             break
         fi
 
-        case "$line" in
+        case "$_line" in
             *Signature*)
                 send_signature
                 ;;
             *CallInfo*)
-                _path=$(echo $line | jq -r '.CallInfo.call.positional[0].String.val')
-                _stdinval=$(echo $line | jq -r '.CallInfo.input.Value.String.val')
+                _path=$(echo $_line | jq -r '.CallInfo.call.positional[0].String.val')
+                _stdinval=$(echo $_line | jq -r '.CallInfo.input.Value.String.val')
                 if [[ "$_stdinval" != "null" ]]; then
                     echo $_stdinval | eval_and_send_environment
                 elif [[ "$_path" != "null" ]]; then
