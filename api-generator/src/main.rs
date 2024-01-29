@@ -16,8 +16,8 @@ impl Plugin for BashEnv {
         vec![PluginSignature::build("bash-env")
             .usage("get environment variables from a Bash environment file")
             .category(Category::Env)
-            .required("path", SyntaxShape::String, "path to environment file")
-            .input_output_types(vec![(Type::String, Type::Any)])
+            .optional("path", SyntaxShape::String, "path to environment file")
+            .input_output_types(vec![(Type::Nothing, Type::Any), (Type::String, Type::Any)])
             .allow_variants_without_examples(true)]
     }
 
