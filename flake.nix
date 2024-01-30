@@ -14,7 +14,7 @@
             inherit system;
           };
           nu_plugin_bash_env = pkgs.writeShellScriptBin "nu_plugin_bash_env"
-            (builtins.replaceStrings ["jq"] ["${pkgs.jq}/bin/jq"]
+            (builtins.replaceStrings ["jq" "(cat)" " sed "] ["${pkgs.jq}/bin/jq" "(${pkgs.coreutils}/bin/cat)" " ${pkgs.gnused}/bin/sed "]
               (builtins.readFile ./nu_plugin_bash_env));
         in
           with pkgs;
