@@ -14,6 +14,20 @@ Then in Nu:
 
 The plugin reads the specified environment file (if any) and evaluates variables from `stdin` (if any) and returns any new or changed environment variables as a record, suitable for passing to Nu's `load-env`.
 
+## Plugin Version Compatability
+
+Since Nushell 0.91.0 the plugin protocol was enhanced and now requires version compatability between plugins and Nushell itself.
+
+The following versions are compatible.
+
+| Nushell | bash-env plugin |
+| ------- | --------------- |
+| 0.89    | 0.5.0           |
+| 0.90    | 0.5.0           |
+| 0.91    | 0.6.0           |
+
+If you find a new version of Nushell rejects this plugin as incompatible, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
+
 ## Dependencies
 
 The script uses `jq` for heavy lifting.

@@ -22,60 +22,81 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
+PROTOCOL_VERSION="0.91.0"
+
+shopt -s extglob
 
 function send_encoder() {
     echo -en "\04json"
 }
 
-function send_signature() {
+function send_hello() {
     jq -c <<EOF
 {
-  "Signature": [
+  "Hello": {
+    "protocol": "nu-plugin",
+    "version": "$PROTOCOL_VERSION",
+    "features": []
+  }
+}
+EOF
+}
+
+function send_signature() {
+    _call_id="$1"
+    jq -c <<EOF
+{
+  "CallResponse": [
+    $_call_id,
     {
-      "sig": {
-        "name": "bash-env",
-        "usage": "get environment variables from Bash format file and/or stdin",
-        "extra_usage": "",
-        "search_terms": [],
-        "required_positional": [],
-        "optional_positional": [
-          {
-            "name": "path",
-            "desc": "path to environment file",
-            "shape": "String",
-            "var_id": null,
-            "default_value": null
-          }
-        ],
-        "rest_positional": null,
-        "named": [
-          {
-            "long": "help",
-            "short": "h",
-            "arg": null,
-            "required": false,
-            "desc": "Display the help message for this command",
-            "var_id": null,
-            "default_value": null
-          }
-        ],
-        "input_output_types": [
-          [
-            "Nothing",
-            "Any"
-          ],
-          [
-            "String",
-            "Any"
-          ]
-        ],
-        "allow_variants_without_examples": true,
-        "is_filter": true,
-        "creates_scope": false,
-        "allows_unknown_args": false,
-        "category": "Env"
-      },
-      "examples": []
+      "Signature": [
+        {
+          "sig": {
+            "name": "bash-env",
+            "usage": "get environment variables from Bash format file and/or stdin",
+            "extra_usage": "",
+            "search_terms": [],
+            "required_positional": [],
+            "optional_positional": [
+              {
+                "name": "path",
+                "desc": "path to environment file",
+                "shape": "String",
+                "var_id": null,
+                "default_value": null
+              }
+            ],
+            "rest_positional": null,
+            "named": [
+              {
+                "long": "help",
+                "short": "h",
+                "arg": null,
+                "required": false,
+                "desc": "Display the help message for this command",
+                "var_id": null,
+                "default_value": null
+              }
+            ],
+            "input_output_types": [
+              [
+                "Nothing",
+                "Any"
+              ],
+              [
+                "String",
+                "Any"
+              ]
+            ],
+            "allow_variants_without_examples": true,
+            "is_filter": true,
+            "creates_scope": false,
+            "allows_unknown_args": false,
+            "category": "Env"
+          },
+          "examples": []
+        }
+      ]
     }
   ]
 }
@@ -83,7 +104,10 @@ EOF
 }
 
 function send_environment() {
-    local _n_env _head _tail _name
+    local _n_env _head _tail _name _call_id
+    _call_id="$1"
+    shift
+
     _n_env=$#
 
     _head="$1"
@@ -91,7 +115,8 @@ function send_environment() {
     _tail="$@"
 
     # header
-    echo -n '{"Value":{"Record":{"val":{"cols":['
+    echo -n "{\"CallResponse\":[$_call_id,"
+    echo -n '{"PipelineData":{"Value":{"Record":{"val":{"cols":['
 
     # names
     if test $_n_env -gt 0; then
@@ -109,13 +134,13 @@ function send_environment() {
     if test $_n_env -gt 0; then
         echo -n '{"String":{"val":'
         echo ${!_head} | jq -R
-        echo -n ',"internal_span":{"start":0,"end":0}}}'
+        echo -n ',"span":{"start":0,"end":0}}}'
 
         for _name in $_tail; do
             if test -v $_name; then
                 echo -n ',{"String":{"val":'
                 echo ${!_name} | jq -R
-                echo -n ',"internal_span":{"start":0,"end":0}}}'
+                echo -n ',"span":{"start":0,"end":0}}}'
             else
                 # unset, TODO
                 :
@@ -124,26 +149,37 @@ function send_environment() {
     fi
 
     # trailer
-    echo ']},"internal_span":{"start":0,"end":0}}}}'
+    echo -n ']},"span":{"start":0,"end":0}}}}}'
+    echo ']}'
 }
 
 function send_error() {
+    local _call_id _msg
+    _call_id="$1"
+    _msg="$2"
     jq -c <<EOF
 {
-  "Error": {
-    "label": "bash-env",
-    "msg": "$1",
-    "internal_span": {
-      "start": 0,
-      "end": 0
+  "CallResponse": [
+    $_call_id,
+    {
+      "Error": {
+        "label": "bash-env",
+        "msg": "$_msg",
+        "span": {
+          "start": 0,
+          "end": 0
+        }
+      }
     }
-  }
+  ]
 }
 EOF
 }
 
 function eval_and_or_source_then_send_environment() {
-    local _source _path _name _value _env_old _env_new _env_changed_or_unset
+    local _source _path _name _value _env_old _env_new _env_changed_or_unset _call_id
+    _call_id="$1"
+    shift
 
     # Nushell may pass through ~ verbatim which we must cope with explicitly
     _path="${1/#\~/$HOME}"
@@ -158,12 +194,12 @@ function eval_and_or_source_then_send_environment() {
     if test -n "$_path"; then
 
         if test ! -r "$_path"; then
-            send_error "no such file '$_path'"
+            send_error "$_call_id" "no such file '$_path'"
             return
         fi
 
         if ! source "$_path" >&2; then
-            send_error "failed to load environment from '$_path'"
+            send_error "$_call_id" "failed to load environment from '$_path'"
             return 1
         fi
     fi
@@ -171,7 +207,7 @@ function eval_and_or_source_then_send_environment() {
     # eval from stdin until EOF
     _source=$(cat);
     if ! eval "$_source" >&2; then
-        send_error "failed to load environment from stdin"
+        send_error "$_call_id" "failed to load environment from stdin"
         return 1
     fi
 
@@ -198,11 +234,11 @@ function eval_and_or_source_then_send_environment() {
         fi
     done
 
-    send_environment ${_env_changed_or_unset[@]} | jq -c
+    send_environment "$_call_id" ${_env_changed_or_unset[@]} | jq -c
 }
 
 function run_as_plugin() {
-    local _line _path _stdinval
+    local _line _path _stdinval _call_id
     send_encoder
 
     while true; do
@@ -213,23 +249,91 @@ function run_as_plugin() {
             break
         fi
 
+        # TODO remove
+        echo "$_line" >>/tmp/nu_plugin_bash_env.log
         case "$_line" in
-            *Signature*)
-                send_signature
+            \{\"Hello\":*)
+                send_hello
                 ;;
-            *CallInfo*)
-                _path=$(echo $_line | jq -r '.CallInfo.call.positional[0].String.val // empty')
-                _stdinval=$(echo $_line | jq -r '.CallInfo.input.Value.String.val // empty' | sed -e 's/\\n/\n/g')
-                echo "$_stdinval" | eval_and_or_source_then_send_environment "$_path"
+            \"Goodbye\")
+                exit
+                ;;
+            \{\"Call\":\[+([0-9]),*)
+                _call_id=$(jq '.Call[0]' <<<"$_line")
+                case "$_line" in
+                    \{\"Call\":\[+([0-9]),\"Signature\"*)
+                        send_signature $_call_id
+                        ;;
+                    \{\"Call\":\[+([0-9]),\{\"Run\"*)
+                        _path=$(echo $_line | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
+                        _stdinval=$(echo $_line | jq -r '.Call[1].Run.input | if . == "Empty" then empty else .Value.String.val end' | sed -e 's/\\n/\n/g')
+                        echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path"
+                        ;;
+                    *)
+                        echo >&2 "unexpected call: $_line"
+                        ;;
+                esac
+                ;;
+            *)
+                echo >&2 "unexpected input: $_line"
                 ;;
         esac
     done
 }
 
-if test $# -eq 0; then
+function bad_usage() {
+    echo >&2 "usage: nu_plugin_bash_env [--stdio] [--standalone [sig | to-json <env-file>]]"
+    echo >&2 "Maybe this plugin doesn't support your version of Nushell"
+    echo >&2 "Please consider creating an issue at"
+    echo >&2 "https://github.com/tesujimath/nu_plugin_bash_env/issues"
+    test -n "$*" && echo >&2 "$*"
+}
+
+# process args
+unset stdio
+unset standalone_hello
+unset standalone_sig
+unset standalone_to_json
+while test -n "$1"; do
+    case "$1" in
+        --stdio)
+            stdio=1
+            ;;
+        --standalone)
+            case "$2" in
+                hello)
+                    standalone_hello=1
+                    shift
+                    ;;
+                sig)
+                    standalone_sig=1
+                    shift
+                    ;;
+                to-json)
+                    standalone_to_json="$3"
+                    shift 2
+                    ;;
+                *)
+                    echo >&2 "unsupported standalone operation: $2"
+                    exit 1
+                    ;;
+            esac
+            ;;
+        *)
+            bad_usage "unexpected arg: $1"
+            exit 1
+    esac
+    shift
+done
+
+if test -n "$stdio"; then
     run_as_plugin
-elif test "$1" == "--to-json"; then
-    eval_and_or_source_then_send_environment "$2"
+elif test -n "$standalone_sig"; then
+    send_signature 99
+elif test -n "$standalone_hello"; then
+    send_hello
+elif test -n "$standalone_to_json"; then
+    eval_and_or_source_then_send_environment 99 "$standalone_to_json"
 else
-    echo "usage: nu_plugin_bash_env [--to-json <env-file>]"
+    bad_usage "need --stdio or --to-json"
 fi
