@@ -9,5 +9,5 @@ repository = "https://github.com/tesujimath/nu_plugin_bash_env"
 readme = "README.md"
 
 [dependencies]
-nu-plugin = { path = "../../../third-party/rust/nushell/crates/nu-plugin" }
-nu-protocol = { path = "../../../third-party/rust/nushell/crates/nu-protocol" }
+nu-plugin = "0.92.0"
+nu-protocol = "0.92.0"
