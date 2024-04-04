@@ -1,0 +1,13 @@
+[package]
+name = "nu_plugin_bash_env_api"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "API for Nu plugin bash-env"
+homepage = "https://github.com/tesujimath/nu_plugin_bash_env"
+repository = "https://github.com/tesujimath/nu_plugin_bash_env"
+readme = "README.md"
+
+[dependencies]
+nu-plugin = "0.92.0"
+nu-protocol = "0.92.0"

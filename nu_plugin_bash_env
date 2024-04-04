@@ -22,7 +22,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-PROTOCOL_VERSION="0.91.0"
+PROTOCOL_VERSION="0.92.0"
 
 shopt -s extglob
 
@@ -115,32 +115,20 @@ function send_environment() {
     _tail="$@"
 
     # header
-    echo -n "{\"CallResponse\":[$_call_id,"
-    echo -n '{"PipelineData":{"Value":{"Record":{"val":{"cols":['
+    echo -n "{\"CallResponse\":[$_call_id,{\"PipelineData\":{"
+    echo -n "\"Value\":{\"Record\":{\"val\":{\"inner\":["
 
-    # names
+    # names and values
     if test $_n_env -gt 0; then
-        echo -n "\"$_head\""
-
-        for _name in $_tail; do
-            echo -n ",\"$_name\""
-        done
-    fi
-
-    # terminate names, start values
-    echo -n '],"vals":['
-
-    # values
-    if test $_n_env -gt 0; then
-        echo -n '{"String":{"val":'
-        echo ${!_head} | jq -R
-        echo -n ',"span":{"start":0,"end":0}}}'
+        echo -n "[\"$_head\",{\"String\":{\"val\":"
+        echo -n ${!_head} | jq -R
+        echo -n ",\"span\":{\"start\":0,\"end\":0}}}]"
 
         for _name in $_tail; do
             if test -v $_name; then
-                echo -n ',{"String":{"val":'
-                echo ${!_name} | jq -R
-                echo -n ',"span":{"start":0,"end":0}}}'
+                echo -n ",[\"$_name\",{\"String\":{\"val\":"
+                echo -n ${!_name} | jq -R
+                echo -n ",\"span\":{\"start\":0,\"end\":0}}}]"
             else
                 # unset, TODO
                 :
@@ -149,8 +137,7 @@ function send_environment() {
     fi
 
     # trailer
-    echo -n ']},"span":{"start":0,"end":0}}}}}'
-    echo ']}'
+    echo ']},"span":{"start":0,"end":0}}}}}]}'
 }
 
 function send_error() {
@@ -163,12 +150,20 @@ function send_error() {
     $_call_id,
     {
       "Error": {
-        "label": "bash-env",
         "msg": "$_msg",
-        "span": {
-          "start": 0,
-          "end": 0
-        }
+        "labels": [
+          {
+            "text": "bash-env",
+            "span": {
+              "start": 0,
+              "end": 0
+            }
+          }
+        ],
+        "code": null,
+        "url": null,
+        "help": null,
+        "inner": []
       }
     }
   ]
