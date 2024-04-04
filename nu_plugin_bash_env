@@ -105,6 +105,7 @@ EOF
 
 function send_environment() {
     local _n_env _head _tail _name _call_id
+    declare -a _tail
     _call_id="$1"
     shift
 
@@ -112,7 +113,7 @@ function send_environment() {
 
     _head="$1"
     shift
-    _tail="$@"
+    _tail=("$@")
 
     # header
     echo -n "{\"CallResponse\":[$_call_id,{\"PipelineData\":{"
@@ -121,13 +122,13 @@ function send_environment() {
     # names and values
     if test $_n_env -gt 0; then
         echo -n "[\"$_head\",{\"String\":{\"val\":"
-        echo -n ${!_head} | jq -R
+        echo -n "${!_head}" | jq -R
         echo -n ",\"span\":{\"start\":0,\"end\":0}}}]"
 
-        for _name in $_tail; do
-            if test -v $_name; then
+        for _name in "${_tail[@]}"; do
+            if test -v "$_name"; then
                 echo -n ",[\"$_name\",{\"String\":{\"val\":"
-                echo -n ${!_name} | jq -R
+                echo -n "${!_name}" | jq -R
                 echo -n ",\"span\":{\"start\":0,\"end\":0}}}]"
             else
                 # unset, TODO
@@ -193,6 +194,8 @@ function eval_and_or_source_then_send_environment() {
             return
         fi
 
+        # ShellCheck can't cope with sourcing from an unknown path
+        # shellcheck disable=SC1090
         if ! source "$_path" >&2; then
             send_error "$_call_id" "failed to load environment from '$_path'"
             return 1
@@ -218,18 +221,18 @@ function eval_and_or_source_then_send_environment() {
     # changes
     for _name in "${!_env_new[@]}"; do
         if test "${_env_new[$_name]}" != "${_env_old[$_name]}"; then
-            _env_changed_or_unset+=($_name)
+            _env_changed_or_unset+=("$_name")
         fi
     done
 
     # unset
     for _name in "${!_env_old[@]}"; do
-        if test ! -v $_name; then
-            _env_changed_or_unset+=($_name)
+        if test ! -v "$_name"; then
+            _env_changed_or_unset+=("$_name")
         fi
     done
 
-    send_environment "$_call_id" ${_env_changed_or_unset[@]} | jq -c
+    send_environment "$_call_id" "${_env_changed_or_unset[@]}" | jq -c
 }
 
 function run_as_plugin() {
@@ -255,11 +258,11 @@ function run_as_plugin() {
                 _call_id=$(jq '.Call[0]' <<<"$_line")
                 case "$_line" in
                     \{\"Call\":\[+([0-9]),\"Signature\"*)
-                        send_signature $_call_id
+                        send_signature "$_call_id"
                         ;;
                     \{\"Call\":\[+([0-9]),\{\"Run\"*)
-                        _path=$(echo $_line | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
-                        _stdinval=$(echo $_line | jq -r '.Call[1].Run.input | if . == "Empty" then empty else .Value.String.val end' | sed -e 's/\\n/\n/g')
+                        _path=$(echo "$_line" | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
+                        _stdinval=$(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then empty else .Value.String.val end' | sed -e 's/\\n/\n/g')
                         echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path"
                         ;;
                     *)
