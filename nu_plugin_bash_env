@@ -126,8 +126,8 @@ function send_environment() {
 
         for _name in $_tail; do
             if test -v $_name; then
-                echo -n ",[\"$_tail\",{\"String\":{\"val\":\""
-                echo ${!_tail} | jq -R
+                echo -n ",[\"$_name\",{\"String\":{\"val\":\""
+                echo ${!_name} | jq -R
                 echo -n "\",\"span\":{\"start\":0,\"end\":0}}}]"
             else
                 # unset, TODO
