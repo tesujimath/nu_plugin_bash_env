@@ -88,6 +88,10 @@ Care has been taken to escape any special characters.
 "Well done!" is better than "Well said!"
 ```
 
+## API
+
+Because this plugin is written in Bash, the API signatures must be written by hand.  The [api](api) sub-directory contains a Rust program to produce what is required, using the official Nu plugin library.
+
 ## Nix flake
 
 The plugin is installable from its flake using Nix Home Manager.
