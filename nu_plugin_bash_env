@@ -249,8 +249,6 @@ function run_as_plugin() {
             break
         fi
 
-        # TODO remove
-        echo "$_line" >>/tmp/nu_plugin_bash_env.log
         case "$_line" in
             \{\"Hello\":*)
                 send_hello
