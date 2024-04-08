@@ -237,8 +237,50 @@ function eval_and_or_source_then_send_environment() {
     send_environment "$_call_id" ${_env_changed_or_unset[@]} | jq -c
 }
 
+function read_stream() {
+    local _line _data_id _active_streams
+    local _stream_id="$1"
+
+    declare -A _active_streams
+    _active_streams["$_stream_id"]=X
+    shift
+
+    # get other active streams
+    while test -n "$1"; do
+        _active_streams["$1"]=X
+        shift
+    done
+
+    while true; do
+        read -rs _line
+
+        # blank line handling
+        if test -z "$_line"; then
+            break
+        fi
+
+        case "$_line" in
+            \{\"Data\":\[+([0-9]),*)
+                _data_id=$(jq '.Data[0]' <<<"$_line")
+                if test "${_data_id}" = "${_stream_id}"; then
+                    # sed is used to remove empty lines, to mitigate the double newline
+                    jq -r '.Data[1].Raw.Ok | implode' <<<"$_line" | sed -r '/^$/d'
+                fi
+                ;;
+            \{\"End\":[0-9]*)
+                _end_id=$(jq '.End' <<<"$_line")
+                unset "_active_streams[$_end_id]"
+                ;;
+        esac
+
+        if test "${#_active_streams[@]}" == 0; then
+            break
+        fi
+    done
+}
+
 function run_as_plugin() {
-    local _line _path _stdinval _call_id
+    local _line _path _stdinval _call_id _stdout_id _exit_code_id
     send_encoder
 
     while true; do
@@ -263,8 +305,23 @@ function run_as_plugin() {
                         send_signature $_call_id
                         ;;
                     \{\"Call\":\[+([0-9]),\{\"Run\"*)
-                        _path=$(echo $_line | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
-                        _stdinval=$(echo $_line | jq -r '.Call[1].Run.input | if . == "Empty" then empty else .Value.String.val end' | sed -e 's/\\n/\n/g')
+                        _path=$(echo "$_line" | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
+
+                        # stdin could come in different ways, or not at all:
+                        case $(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then "Empty" elif .Value.String | has("val") then "String" elif has("ExternalStream") then "ExternalStream" else "Other" end') in
+                            Empty)
+                                _stdinval=""
+                                ;;
+                            String)
+                                _stdinval=$(echo "$_line" | jq -r '.Call[1].Run.input.Value.String.val')
+                                ;;
+                            ExternalStream)
+                                _stdout_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ExternalStream.stdout.id')
+                                _exit_code_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ExternalStream.exit_code.id')
+                                _stdinval=$(read_stream "$_stdout_id" "$_exit_code_id")
+                                ;;
+                        esac
+
                         echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path"
                         ;;
                     *)
