@@ -13,7 +13,33 @@ plugin_dir=$(dirname "$0")
 plugin_name=$(basename "$0" | sed -e 's/_tracer$//')
 plugin_path="$plugin_dir/$plugin_name"
 
-input_trace="$HOME/$plugin_name.in"
-output_trace="$HOME/$plugin_name.out"
+in_trace="$HOME/$plugin_name.in"
+out_trace="$HOME/$plugin_name.out"
 
-exec tee -a -p "$input_trace" | "$plugin_path" "$@" | tee -a -p "$output_trace"
+in_fifo="/tmp/$plugin_name.in.$$"
+plugin_fifo="/tmp/$plugin_name.plugin.$$"
+out_fifo="/tmp/$plugin_name.out.$$"
+
+# FIFOs to get PIDs of each stage
+mkfifo "$in_fifo"
+mkfifo "$plugin_fifo"
+mkfifo "$out_fifo"
+trap 'rm -f $in_fifo $plugin_fifo $out_fifo' EXIT
+
+(tee -a -p "$in_trace" & echo $! >"$in_fifo") | ("$plugin_path" "$@" & echo $! >"$plugin_fifo") | (tee -a -p "$out_trace" & echo $! >"out_fifo") &
+in_pid=$(cat "$in_fifo")
+plugin_pid=$(cat "$plugin_fifo")
+out_pid=$(cat "$out_fifo")
+
+echo >&2 "in tee is $in_pid"
+echo >&2 "plugin tee is $plugin_pid"
+echo >&2 "out tee is $out_pid"
+
+wait "$plugin_pid"
+sleep 10
+
+echo >&2 "plugin is done"
+wait "$out_pid"
+echo >&2 "out tee is done"
+wait "$in_pid"
+echo >&2 "in tee is done"
