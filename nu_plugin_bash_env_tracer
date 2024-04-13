@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#
+# Nu plugin wrapper to provide tracing, dumping all input to and output from the plugin 
+# into files in the user's home directory
+#
+# USAGE
+#
+# Rename this script after the plugin with a _tracer suffix.
+# It knows its own name, and looks for the plugin with the corresponding name
+# in the same directoryas this script.
+
+plugin_dir=$(dirname "$0")
+plugin_name=$(basename "$0" | sed -e 's/_tracer$//')
+plugin_path="$plugin_dir/$plugin_name"
+
+input_trace="$HOME/$plugin_name.in"
+output_trace="$HOME/$plugin_name.out"
+
+exec tee -a -p "$input_trace" | "$plugin_path" "$@" | tee -a -p "$output_trace"
