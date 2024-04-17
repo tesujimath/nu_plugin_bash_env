@@ -9,7 +9,10 @@
 # It knows its own name, and looks for the plugin with the corresponding name
 # in the same directoryas this script.
 
-plugin_dir=$(dirname "$0")
+set -euo pipefail
+
+# TODO take this from environment
+plugin_dir=$HOME/.config/nushell/plugins
 plugin_name=$(basename "$0" | sed -e 's/_tracer$//')
 plugin_path="$plugin_dir/$plugin_name"
 
@@ -24,20 +27,25 @@ mkfifo "$in_fifo"
 mkfifo "$out_fifo"
 trap 'rm -f $in_fifo $out_fifo' EXIT
 
+# stdin goes to tee, and we close ours
 tee -a -p "$in_trace" >"$in_fifo" &
 in_pid=$!
-"$plugin_path" "$@" <"$in_fifo" >"$out_fifo" &
-plugin_pid=$!
+exec <&-
+
+# stdout comes through tee, and we close ours
 tee -a -p "$out_trace" <"$out_fifo" &
 out_pid=$!
+exec >&-
 
-echo >&2 "in tee is $in_pid"
-echo >&2 "plugin tee is $plugin_pid"
-echo >&2 "out tee is $out_pid"
+# plugin itself shuttles between the FIFOs
+"$plugin_path" "$@" <"$in_fifo" >"$out_fifo" &
+plugin_pid=$!
+
+echo >&2 "in tee pid is $in_pid"
+echo >&2 "plugin pid is $plugin_pid"
+echo >&2 "out tee pid is $out_pid"
 
 wait "$plugin_pid"
-sleep 10
-
 echo >&2 "plugin is done"
 wait "$out_pid"
 echo >&2 "out tee is done"
