@@ -17,19 +17,19 @@ in_trace="$HOME/$plugin_name.in"
 out_trace="$HOME/$plugin_name.out"
 
 in_fifo="/tmp/$plugin_name.in.$$"
-plugin_fifo="/tmp/$plugin_name.plugin.$$"
 out_fifo="/tmp/$plugin_name.out.$$"
 
 # FIFOs to get PIDs of each stage
 mkfifo "$in_fifo"
-mkfifo "$plugin_fifo"
 mkfifo "$out_fifo"
-trap 'rm -f $in_fifo $plugin_fifo $out_fifo' EXIT
+trap 'rm -f $in_fifo $out_fifo' EXIT
 
-(tee -a -p "$in_trace" & echo $! >"$in_fifo") | ("$plugin_path" "$@" & echo $! >"$plugin_fifo") | (tee -a -p "$out_trace" & echo $! >"out_fifo") &
-in_pid=$(cat "$in_fifo")
-plugin_pid=$(cat "$plugin_fifo")
-out_pid=$(cat "$out_fifo")
+tee -a -p "$in_trace" >"$in_fifo" &
+in_pid=$!
+"$plugin_path" "$@" <"$in_fifo" >"$out_fifo" &
+plugin_pid=$!
+tee -a -p "$out_trace" <"$out_fifo" &
+out_pid=$!
 
 echo >&2 "in tee is $in_pid"
 echo >&2 "plugin tee is $plugin_pid"
