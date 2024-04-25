@@ -4,21 +4,21 @@ use nu_plugin::{serve_plugin, EvaluatedCall, JsonSerializer};
 use nu_plugin::{EngineInterface, Plugin, PluginCommand, SimplePluginCommand};
 use nu_protocol::{Category, LabeledError, Record, Signature, Span, SyntaxShape, Type, Value};
 
-struct BashEnvPlugin;
+struct BashEnvApiPlugin;
 
-impl Plugin for BashEnvPlugin {
+impl Plugin for BashEnvApiPlugin {
     fn commands(&self) -> Vec<Box<dyn PluginCommand<Plugin = Self>>> {
-        vec![Box::new(BashEnv)]
+        vec![Box::new(BashEnvApi)]
     }
 }
 
-struct BashEnv;
+struct BashEnvApi;
 
-impl SimplePluginCommand for BashEnv {
-    type Plugin = BashEnvPlugin;
+impl SimplePluginCommand for BashEnvApi {
+    type Plugin = BashEnvApiPlugin;
 
     fn name(&self) -> &str {
-        "bash-env"
+        "bash-env-api"
     }
 
     fn usage(&self) -> &str {
@@ -37,7 +37,7 @@ impl SimplePluginCommand for BashEnv {
 
     fn run(
         &self,
-        _plugin: &BashEnvPlugin,
+        _plugin: &BashEnvApiPlugin,
         _engine: &EngineInterface,
         call: &EvaluatedCall,
         input: &Value,
@@ -80,9 +80,9 @@ fn create_error<S>(msg: S, creation_site_span: Span) -> LabeledError
 where
     S: Into<String>,
 {
-    LabeledError::new(msg).with_label("bash-env", creation_site_span)
+    LabeledError::new(msg).with_label("bash-env-api", creation_site_span)
 }
 
 fn main() {
-    serve_plugin(&BashEnvPlugin, JsonSerializer)
+    serve_plugin(&BashEnvApiPlugin, JsonSerializer)
 }
