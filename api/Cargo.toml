@@ -1,6 +1,6 @@
 [package]
 name = "nu_plugin_bash_env_api"
-version = "0.1.0"
+version = "0.8.0"
 edition = "2021"
 license = "MIT"
 description = "API for Nu plugin bash-env"
@@ -9,8 +9,5 @@ repository = "https://github.com/tesujimath/nu_plugin_bash_env"
 readme = "README.md"
 
 [dependencies]
-# nu-plugin = "0.92.0"
-# nu-protocol = "0.92.0"
-# don't want default features, as local-socket breaks tracing
-nu-plugin = { git = "https://github.com/nushell/nushell.git", rev = "fbb4fad7ac8985751c12fd6a6382b867f7f6c095", default-features = false}
-nu-protocol = { git = "https://github.com/nushell/nushell.git", rev = "fbb4fad7ac8985751c12fd6a6382b867f7f6c095" }
+nu-plugin = "0.93.0"
+nu-protocol = "0.93.0"
