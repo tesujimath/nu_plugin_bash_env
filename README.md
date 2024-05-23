@@ -73,6 +73,38 @@ Agent pid 98985
 ╰───────────────┴───────────────────────────────────╯
 ```
 
+### Exporting Shell Variables
+
+The plugin supports `--export` for exporting shell variables into the environment.
+
+```
+> echo "ABC=123" | bash-env
+╭──────────────╮
+│ empty record │
+╰──────────────╯
+
+> echo "export ABC=123" | bash-env
+╭─────┬─────╮
+│ ABC │ 123 │
+╰─────┴─────╯
+
+> echo "ABC=123" | bash-env --export [ABC]
+╭─────┬─────╮
+│ ABC │ 123 │
+╰─────┴─────╯
+
+> bash-env /etc/os-release
+╭──────────────╮
+│ empty record │
+╰──────────────╯
+
+> bash-env --export [ID PRETTY_NAME] /etc/os-release
+╭─────────────┬──────────────────────╮
+│ ID          │ nixos                │
+│ PRETTY_NAME │ NixOS 24.05 (Uakari) │
+╰─────────────┴──────────────────────╯
+```
+
 ### Escaping Special Characters
 
 Care has been taken to escape any special characters.

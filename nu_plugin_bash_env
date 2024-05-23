@@ -76,6 +76,17 @@ function send_signature() {
                 "desc": "Display the help message for this command",
                 "var_id": null,
                 "default_value": null
+              },
+              {
+                "long": "export",
+                "short": null,
+                "arg": {
+                  "List": "String"
+                },
+                "required": false,
+                "desc": "Shell variables to export",
+                "var_id": null,
+                "default_value": null
               }
             ],
             "input_output_types": [
@@ -173,12 +184,17 @@ EOF
 }
 
 function eval_and_or_source_then_send_environment() {
-    local _source _path _name _value _env_old _env_new _env_changed_or_unset _call_id
+    local _source _path _name _value _env_old _env_new _env_changed_or_unset _call_id _exports _export
     _call_id="$1"
     shift
 
     # Nushell may pass through ~ verbatim which we must cope with explicitly
     _path="${1/#\~/$HOME}"
+    shift
+
+    # final argument is array of exports, if any
+    declare -a _exports
+    _exports=("$@")
 
     # get previous env
     declare -A _env_old
@@ -208,6 +224,12 @@ function eval_and_or_source_then_send_environment() {
         send_error "$_call_id" "failed to load environment from stdin"
         return 1
     fi
+
+    # export shell variables to environment as specified, if any
+    for _export in "${_exports[@]}"
+    do
+      export "${_export}=${!_export}"
+    done
 
     # get new environment
     declare -A _env_new
@@ -278,7 +300,8 @@ function read_stream() {
 }
 
 function run_as_plugin() {
-    local _line _path _stdinval _call_id _stdout_id _exit_code_id
+    local _line _path _stdinval _call_id _stdout_id _exit_code_id _exports
+    declare -a _exports
     send_encoder
 
     while true; do
@@ -320,7 +343,10 @@ function run_as_plugin() {
                                 ;;
                         esac
 
-                        echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path"
+                        # get exports, if any
+                        mapfile -t _exports < <(echo "$_line" | jq -r '.Call[1].Run.call.named // [] | .[] | select(.[0].item == "export") | .[1].List.vals.[].String.val') 
+
+                        echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path" "${_exports[@]}"
                         ;;
                     *)
                         echo >&2 "unexpected call: $_line"
@@ -386,7 +412,8 @@ elif test -n "$standalone_sig"; then
 elif test -n "$standalone_hello"; then
     send_hello
 elif test -n "$standalone_to_json"; then
-    eval_and_or_source_then_send_environment 99 "$standalone_to_json"
+    declare -a _exports
+    eval_and_or_source_then_send_environment 99 "$standalone_to_json" "${_exports[@]}"
 else
     bad_usage "need --stdio or --to-json"
 fi
