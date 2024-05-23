@@ -30,6 +30,12 @@ impl SimplePluginCommand for BashEnvApi {
             .usage("get environment variables from Bash format file and/or stdin")
             .category(Category::Env)
             .optional("path", SyntaxShape::String, "path to environment file")
+            .named(
+                "export",
+                SyntaxShape::List(Box::new(SyntaxShape::String)),
+                "list of shell variables to export",
+                None,
+            )
             .input_output_types(vec![(Type::Nothing, Type::Any), (Type::String, Type::Any)])
             .filter()
             .allow_variants_without_examples(true)
