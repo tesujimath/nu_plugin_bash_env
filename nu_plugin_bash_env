@@ -114,6 +114,15 @@ function send_signature() {
 EOF
 }
 
+function send_value() {
+    # jq -R produces nothing on empty input, but we want ""
+    if test -n "$1" ; then
+        echo -n "$1" | jq -R
+    else
+        echo -n '""'
+    fi
+}
+
 function send_environment() {
     local _n_env _head _tail _name _call_id
     declare -a _tail
@@ -133,13 +142,13 @@ function send_environment() {
     # names and values
     if test $_n_env -gt 0; then
         echo -n "\"$_head\":{\"String\":{\"val\":"
-        echo -n "${!_head}" | jq -R
+        send_value "${!_head}"
         echo -n ",\"span\":{\"start\":0,\"end\":0}}}"
 
         for _name in "${_tail[@]}"; do
             if test -v "$_name"; then
                 echo -n ",\"$_name\":{\"String\":{\"val\":"
-                echo -n "${!_name}" | jq -R
+                send_value "${!_name}"
                 echo -n ",\"span\":{\"start\":0,\"end\":0}}}"
             else
                 # unset, TODO
