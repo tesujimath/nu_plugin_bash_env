@@ -20,6 +20,7 @@
           {
             devShells.default = mkShell {
               nativeBuildInputs = [
+                bashInteractive
                 cargo-modules
                 cargo-udeps
                 rust-bin.stable.latest.default
