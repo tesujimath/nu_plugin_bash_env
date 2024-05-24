@@ -1025,7 +1025,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_bash_env_api"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "nu-plugin",
  "nu-protocol",
