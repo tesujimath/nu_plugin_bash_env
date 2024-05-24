@@ -17,6 +17,7 @@ jobs:
         run: |
           echo $HOME
           ls -l $HOME
+          ls -l $HOME/.config
           pwd
-          ls -l 
+          ls -l
           ./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu run-tests.nu
