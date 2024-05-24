@@ -3,12 +3,6 @@ use std assert
 # TODO use testing.nu testing module,
 # which wasn't working at the time I wrote these tests
 
-#[before-all]
-def add_and_use_plugin [] {
-  plugin add nu_plugin_bash_env
-  plugin use bash_env
-}
-
 #[test]
 def test_echo [] {
   let actual = echo "export A=123" | bash-env
@@ -90,18 +84,18 @@ def test_mixed [] {
   assert equal $actual $expected
 }
 
-add_and_use_plugin
+export def run_bash_env_tests [] {
+  test_echo
+  test_not_exported
+  test_export_shell_variables
+  test_export_shell_variables_missing
+  test_shell_variables_from_file
+  test_export_shell_variables_from_file
+  test_empty_value
+  test_simple_file
+  test_cat_simple_file
+  test_nasty_values_from_file
+  test_mixed
 
-test_echo
-test_not_exported
-test_export_shell_variables
-test_export_shell_variables_missing
-test_shell_variables_from_file
-test_export_shell_variables_from_file
-test_empty_value
-test_simple_file
-test_cat_simple_file
-test_nasty_values_from_file
-test_mixed
-
-print "All tests passed"
+  print "All tests passed"
+}

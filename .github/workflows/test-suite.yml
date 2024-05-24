@@ -13,11 +13,8 @@ jobs:
       - name: Download Nushell $NU_VERSION
         run: |
           curl -L https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-x86_64-linux-gnu-full.tar.gz | tar xzf -
-      - name: Run
+      - name: Run Tests
         run: |
-          echo $HOME
-          ls -l $HOME
-          ls -l $HOME/.config
-          pwd
-          ls -l
-          ./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu run-tests.nu
+          BARE_NU="./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu --no-config-file --no-history"
+          $BARE_NU -c "plugin add --plugin-config plugin.msgpackz nu_plugin_bash_env"
+          $BARE_NU -c "plugin use --plugin-config plugin.msgpackz bash_env ; use tests.nu run_bash_env_tests ; run_bash_env_tests'"
