@@ -103,3 +103,5 @@ test_simple_file
 test_cat_simple_file
 test_nasty_values_from_file
 test_mixed
+
+print "All tests passed"
