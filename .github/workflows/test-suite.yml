@@ -11,6 +11,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Download Nushell $NU_VERSION
-        run: curl -L "https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-x86_64-linux-gnu-full.tar.gz" | tar xzf
+        run: curl -L "https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-x86_64-linux-gnu-full.tar.gz" | tar xzf -
       - name: Run
         run: "./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu" run-tests.nu
