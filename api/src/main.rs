@@ -44,10 +44,12 @@ impl SimplePluginCommand for BashEnvApi {
     fn run(
         &self,
         _plugin: &BashEnvApiPlugin,
-        _engine: &EngineInterface,
+        engine: &EngineInterface,
         call: &EvaluatedCall,
         input: &Value,
     ) -> Result<Value, LabeledError> {
+        let _cwd = engine.get_current_dir();
+
         let span = input.span();
         match call.positional.first() {
             Some(value @ Value::String { val: path, .. }) => {
