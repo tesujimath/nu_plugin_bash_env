@@ -38,7 +38,7 @@ The script uses `jq` for heavy lifting.
 
 ### Simple Usage
 ```
-> bash-env examples/simple.env
+> bash-env tests/simple.env
 ╭───┬───╮
 │ B │ b │
 │ A │ a │
@@ -50,7 +50,7 @@ Error: nu::shell::name_not_found
   × Name not found
 
 
-> bash-env examples/simple.env | load-env
+> bash-env tests/simple.env | load-env
 
 > echo $env.A
 a
@@ -58,7 +58,7 @@ a
 b
 
 
-> bash-env examples/simple.env
+> bash-env tests/simple.env
 ╭──────────────╮
 │ empty record │
 ╰──────────────╯
@@ -110,14 +110,14 @@ The plugin supports `--export` for exporting shell variables into the environmen
 Care has been taken to escape any special characters.
 
 ```
-> bash-env `examples/Ming's "menu" of (merciless) monstrosities.env`
+> bash-env `tests/Ming's "menu" of (merciless) monstrosities.env`
 ╭───────────┬──────────────────────────────────────────────────────╮
 │ QUOTE     │ "Well done!" is better than "Well said!"             │
 │ SPACEMAN  │ One small step for a man ...                         │
 │ MIXED_BAG │ Did the sixth sheik's sixth sheep say "baa", or not? │
 ╰───────────┴──────────────────────────────────────────────────────╯
 
-> bash-env `examples/Ming's "menu" of (merciless) monstrosities.env` | load-env
+> bash-env `tests/Ming's "menu" of (merciless) monstrosities.env` | load-env
 > echo $env.QUOTE
 "Well done!" is better than "Well said!"
 ```
