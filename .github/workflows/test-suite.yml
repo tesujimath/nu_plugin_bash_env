@@ -15,4 +15,8 @@ jobs:
           curl -L https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-x86_64-linux-gnu-full.tar.gz | tar xzf -
       - name: Run
         run: |
+          echo $HOME
+          ls -l $HOME
+          pwd
+          ls -l 
           ./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu run-tests.nu
