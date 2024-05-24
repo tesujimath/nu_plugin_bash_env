@@ -1,0 +1,24 @@
+name: test suite
+on: [push, pull_request]
+env:
+  NU_VERSION: 0.93.0
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Download Nushell $NU_VERSION
+        run: |
+          curl -L https://github.com/nushell/nushell/releases/download/${NU_VERSION}/nu-${NU_VERSION}-x86_64-linux-gnu-full.tar.gz | tar xzf -
+      - name: Version Check
+        run: |
+          ./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu --version
+          bash --version
+          jq --version
+      - name: Run Tests
+        run: |
+          ./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu --no-config-file --no-history -c "plugin add --plugin-config plugin.msgpackz nu_plugin_bash_env"
+          ./nu-${NU_VERSION}-x86_64-linux-gnu-full/nu --no-config-file --no-history -c "plugin use --plugin-config plugin.msgpackz bash_env ; use tests.nu run_bash_env_tests ; run_bash_env_tests"
