@@ -197,8 +197,7 @@ function eval_and_or_source_then_send_environment() {
     _call_id="$1"
     shift
 
-    # Nushell may pass through ~ verbatim which we must cope with explicitly
-    _path="${1/#\~/$HOME}"
+    _path="$1"
     shift
 
     # final argument is array of exports, if any
@@ -308,8 +307,22 @@ function read_stream() {
     done
 }
 
+function get_current_dir_request() {
+    local _call_id
+
+    _call_id="$1"
+    echo "{\"EngineCall\":{\"context\":$_call_id,\"id\":0,\"call\":\"GetCurrentDir\"}}"
+}
+
+function get_current_dir_response() {
+    local _line
+
+    read -rs _line
+    echo "$_line" | jq -r '.EngineCallResponse[1].PipelineData.Value.String.val'
+}
+
 function run_as_plugin() {
-    local _line _path _stdinval _call_id _stdout_id _exit_code_id _exports
+    local _line _path _stdinval _call_id _stdout_id _exit_code_id _exports _cwd
     declare -a _exports
     send_encoder
 
@@ -336,6 +349,15 @@ function run_as_plugin() {
                         ;;
                     \{\"Call\":\[+([0-9]),\{\"Run\"*)
                         _path=$(echo "$_line" | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
+                        # Nushell may pass through ~ verbatim which we must cope with explicitly
+                        _path="${_path/#\~/$HOME}"
+
+                        # relative path requires us to determine cwd from the engine
+                        if test -n "$_path" -a "${_path::1}" != /; then
+                            get_current_dir_request "$_call_id"
+                            _cwd=$(get_current_dir_response)
+                            _path="$_cwd/$_path"
+                        fi
 
                         # stdin could come in different ways, or not at all:
                         case $(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then "Empty" elif .Value.String | has("val") then "String" elif has("ExternalStream") then "ExternalStream" else "Other" end') in
