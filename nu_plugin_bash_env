@@ -22,7 +22,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-PROTOCOL_VERSION="0.93.0"
+PROTOCOL_VERSION="0.94.1"
 
 shopt -s extglob
 
@@ -322,7 +322,7 @@ function get_current_dir_response() {
 }
 
 function run_as_plugin() {
-    local _line _path _stdinval _call_id _stdout_id _exit_code_id _exports _cwd
+    local _line _path _stdinval _call_id _stdout_id _exports _cwd
     declare -a _exports
     send_encoder
 
@@ -360,17 +360,16 @@ function run_as_plugin() {
                         fi
 
                         # stdin could come in different ways, or not at all:
-                        case $(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then "Empty" elif .Value.String | has("val") then "String" elif has("ExternalStream") then "ExternalStream" else "Other" end') in
+                        case $(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then "Empty" elif .Value.String | has("val") then "String" elif has("ByteStream") then "ByteStream" else "Other" end') in
                             Empty)
                                 _stdinval=""
                                 ;;
                             String)
                                 _stdinval=$(echo "$_line" | jq -r '.Call[1].Run.input.Value.String.val')
                                 ;;
-                            ExternalStream)
-                                _stdout_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ExternalStream.stdout.id')
-                                _exit_code_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ExternalStream.exit_code.id')
-                                _stdinval=$(read_stream "$_stdout_id" "$_exit_code_id")
+                            ByteStream)
+                                _stdout_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ByteStream.id')
+                                _stdinval=$(read_stream "$_stdout_id")
                                 ;;
                         esac
 
