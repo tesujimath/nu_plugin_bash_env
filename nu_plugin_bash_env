@@ -116,7 +116,7 @@ EOF
 
 function send_value() {
     # jq -R produces nothing on empty input, but we want ""
-    if test -n "$1" ; then
+    if test -n "$1"; then
         echo -n "$1" | jq -R
     else
         echo -n '""'
@@ -227,16 +227,15 @@ function eval_and_or_source_then_send_environment() {
     fi
 
     # eval from stdin until EOF
-    _source=$(cat);
+    _source=$(cat)
     if ! eval "$_source" >&2; then
         send_error "$_call_id" "failed to load environment from stdin"
         return 1
     fi
 
     # export shell variables to environment as specified, if any
-    for _export in "${_exports[@]}"
-    do
-      export "${_export}=${!_export}"
+    for _export in "${_exports[@]}"; do
+        export "${_export}=${!_export}"
     done
 
     # get new environment
@@ -288,17 +287,17 @@ function read_stream() {
         fi
 
         case "$_line" in
-            \{\"Data\":\[+([0-9]),*)
-                _data_id=$(jq '.Data[0]' <<<"$_line")
-                if test "${_data_id}" = "${_stream_id}"; then
-                    # sed is used to remove empty lines, to mitigate the double newline
-                    jq -r '.Data[1].Raw.Ok | implode' <<<"$_line" | sed -r '/^$/d'
-                fi
-                ;;
-            \{\"End\":[0-9]*)
-                _end_id=$(jq '.End' <<<"$_line")
-                unset "_active_streams[$_end_id]"
-                ;;
+        \{\"Data\":\[+([0-9]),*)
+            _data_id=$(jq '.Data[0]' <<<"$_line")
+            if test "${_data_id}" = "${_stream_id}"; then
+                # sed is used to remove empty lines, to mitigate the double newline
+                jq -r '.Data[1].Raw.Ok | implode' <<<"$_line" | sed -r '/^$/d'
+            fi
+            ;;
+        \{\"End\":[0-9]*)
+            _end_id=$(jq '.End' <<<"$_line")
+            unset "_active_streams[$_end_id]"
+            ;;
         esac
 
         if test "${#_active_streams[@]}" == 0; then
@@ -335,57 +334,57 @@ function run_as_plugin() {
         fi
 
         case "$_line" in
-            \{\"Hello\":*)
-                send_hello
+        \{\"Hello\":*)
+            send_hello
+            ;;
+        \"Goodbye\")
+            exit
+            ;;
+        \{\"Call\":\[+([0-9]),*)
+            _call_id=$(jq '.Call[0]' <<<"$_line")
+            case "$_line" in
+            \{\"Call\":\[+([0-9]),\"Signature\"*)
+                send_signature "$_call_id"
                 ;;
-            \"Goodbye\")
-                exit
-                ;;
-            \{\"Call\":\[+([0-9]),*)
-                _call_id=$(jq '.Call[0]' <<<"$_line")
-                case "$_line" in
-                    \{\"Call\":\[+([0-9]),\"Signature\"*)
-                        send_signature "$_call_id"
-                        ;;
-                    \{\"Call\":\[+([0-9]),\{\"Run\"*)
-                        _path=$(echo "$_line" | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
-                        # Nushell may pass through ~ verbatim which we must cope with explicitly
-                        _path="${_path/#\~/$HOME}"
+            \{\"Call\":\[+([0-9]),\{\"Run\"*)
+                _path=$(echo "$_line" | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
+                # Nushell may pass through ~ verbatim which we must cope with explicitly
+                _path="${_path/#\~/$HOME}"
 
-                        # relative path requires us to determine cwd from the engine
-                        if test -n "$_path" -a "${_path::1}" != /; then
-                            get_current_dir_request "$_call_id"
-                            _cwd=$(get_current_dir_response)
-                            _path="$_cwd/$_path"
-                        fi
+                # relative path requires us to determine cwd from the engine
+                if test -n "$_path" -a "${_path::1}" != /; then
+                    get_current_dir_request "$_call_id"
+                    _cwd=$(get_current_dir_response)
+                    _path="$_cwd/$_path"
+                fi
 
-                        # stdin could come in different ways, or not at all:
-                        case $(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then "Empty" elif .Value.String | has("val") then "String" elif has("ByteStream") then "ByteStream" else "Other" end') in
-                            Empty)
-                                _stdinval=""
-                                ;;
-                            String)
-                                _stdinval=$(echo "$_line" | jq -r '.Call[1].Run.input.Value.String.val')
-                                ;;
-                            ByteStream)
-                                _stdout_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ByteStream.id')
-                                _stdinval=$(read_stream "$_stdout_id")
-                                ;;
-                        esac
-
-                        # get exports, if any
-                        mapfile -t _exports < <(echo "$_line" | jq -r '.Call[1].Run.call.named // [] | .[] | select(.[0].item == "export") | .[1].List.vals.[].String.val') 
-
-                        echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path" "${_exports[@]}"
-                        ;;
-                    *)
-                        echo >&2 "unexpected call: $_line"
-                        ;;
+                # stdin could come in different ways, or not at all:
+                case $(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then "Empty" elif .Value.String | has("val") then "String" elif has("ByteStream") then "ByteStream" else "Other" end') in
+                Empty)
+                    _stdinval=""
+                    ;;
+                String)
+                    _stdinval=$(echo "$_line" | jq -r '.Call[1].Run.input.Value.String.val')
+                    ;;
+                ByteStream)
+                    _stdout_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ByteStream.id')
+                    _stdinval=$(read_stream "$_stdout_id")
+                    ;;
                 esac
+
+                # get exports, if any
+                mapfile -t _exports < <(echo "$_line" | jq -r '.Call[1].Run.call.named // [] | .[] | select(.[0].item == "export") | .[1].List.vals.[].String.val')
+
+                echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path" "${_exports[@]}"
                 ;;
             *)
-                echo >&2 "unexpected input: $_line"
+                echo >&2 "unexpected call: $_line"
                 ;;
+            esac
+            ;;
+        *)
+            echo >&2 "unexpected input: $_line"
+            ;;
         esac
     done
 }
@@ -405,32 +404,33 @@ unset standalone_sig
 unset standalone_to_json
 while test -n "$1"; do
     case "$1" in
-        --stdio)
-            stdio=1
+    --stdio)
+        stdio=1
+        ;;
+    --standalone)
+        case "$2" in
+        hello)
+            standalone_hello=1
+            shift
             ;;
-        --standalone)
-            case "$2" in
-                hello)
-                    standalone_hello=1
-                    shift
-                    ;;
-                sig)
-                    standalone_sig=1
-                    shift
-                    ;;
-                to-json)
-                    standalone_to_json="$3"
-                    shift 2
-                    ;;
-                *)
-                    echo >&2 "unsupported standalone operation: $2"
-                    exit 1
-                    ;;
-            esac
+        sig)
+            standalone_sig=1
+            shift
+            ;;
+        to-json)
+            standalone_to_json="$3"
+            shift 2
             ;;
         *)
-            bad_usage "unexpected arg: $1"
+            echo >&2 "unsupported standalone operation: $2"
             exit 1
+            ;;
+        esac
+        ;;
+    *)
+        bad_usage "unexpected arg: $1"
+        exit 1
+        ;;
     esac
     shift
 done
