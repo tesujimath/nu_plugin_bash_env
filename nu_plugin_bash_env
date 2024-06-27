@@ -22,7 +22,8 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-PROTOCOL_VERSION="0.94.1"
+VERSION="0.11.0"
+PROTOCOL_VERSION="0.95.0"
 
 shopt -s extglob
 
@@ -38,6 +39,22 @@ function send_hello() {
     "version": "$PROTOCOL_VERSION",
     "features": []
   }
+}
+EOF
+}
+
+function send_metadata() {
+    _call_id="$1"
+    jq -c <<EOF
+{
+  "CallResponse": [
+    $_call_id,
+    {
+      "Metadata": {
+          "version": "$VERSION"
+      }
+    }
+  ]
 }
 EOF
 }
@@ -343,6 +360,9 @@ function run_as_plugin() {
         \{\"Call\":\[+([0-9]),*)
             _call_id=$(jq '.Call[0]' <<<"$_line")
             case "$_line" in
+            \{\"Call\":\[+([0-9]),\"Metadata\"*)
+                send_metadata "$_call_id"
+                ;;
             \{\"Call\":\[+([0-9]),\"Signature\"*)
                 send_signature "$_call_id"
                 ;;
