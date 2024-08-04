@@ -9,5 +9,5 @@ repository = "https://github.com/tesujimath/nu_plugin_bash_env"
 readme = "README.md"
 
 [dependencies]
-nu-plugin = "0.95.0"
-nu-protocol = "0.95.0"
+nu-plugin = "0.96.1"
+nu-protocol = "0.96.1"

@@ -61,7 +61,7 @@ def test_simple_file [] {
 
 #[test]
 def test_cat_simple_file [] {
-  let actual = cat tests/simple.env | bash-env 
+  let actual = cat tests/simple.env | bash-env
   let expected = { A: "a" B: "b" }
   assert equal $actual $expected
 }
@@ -69,7 +69,7 @@ def test_cat_simple_file [] {
 #[test]
 def test_nasty_values_from_file [] {
   let actual = bash-env "tests/Ming's menu of (merciless) monstrosities.env"
-  let expected = { 
+  let expected = {
     SPACEMAN: "One small step for a man ..."
     QUOTE: "\"Well done!\" is better than \"Well said!\""
     MIXED_BAG: "Did the sixth sheik's sixth sheep say \"baa\", or not?"
