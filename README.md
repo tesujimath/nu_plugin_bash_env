@@ -30,6 +30,7 @@ The following versions are compatible.
 |    0.93 |           0.9.0 |
 |    0.94 |          0.10.0 |
 |    0.95 |          0.11.0 |
+|    0.96 |          0.12.0 |
 
 If you find a new version of Nushell rejects this plugin as incompatible, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
 
