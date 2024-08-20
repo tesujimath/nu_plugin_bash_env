@@ -36,7 +36,9 @@ If you find a new version of Nushell rejects this plugin as incompatible, please
 
 ## Dependencies
 
-The script uses `jq` for heavy lifting.
+The script uses `jq` for heavy lifting.  [At least jq version 1.7 is required](https://github.com/tesujimath/nu_plugin_bash_env/issues/24).
+
+Also I suspect at least Bash version 5.1.
 
 ## Examples
 
