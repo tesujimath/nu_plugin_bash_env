@@ -20,19 +20,24 @@ Since Nushell 0.91.0 the plugin protocol was enhanced and now requires version c
 
 The following versions are compatible.
 
-| Nushell | bash-env plugin |
-| ------- | --------------- |
-|    0.89 |           0.5.0 |
-|    0.90 |           0.5.0 |
-|    0.91 |           0.6.2 |
-|    0.92 |           0.7.1 |
-|    0.93 |           0.8.0 |
-|    0.93 |           0.9.0 |
-|    0.94 |          0.10.0 |
-|    0.95 |          0.11.0 |
-|    0.96 |          0.12.1 |
+|  Nushell | bash-env plugin |
+| -------- | --------------- |
+|    0.89  |           0.5.0 |
+|    0.90  |           0.5.0 |
+|    0.91  |           0.6.2 |
+|    0.92  |           0.7.1 |
+|    0.93  |           0.8.0 |
+|    0.93  |           0.9.0 |
+|    0.94  |          0.10.0 |
+|    0.95  |          0.11.0 |
+|    0.96  |          0.12.1 |
+|    0.97+ |          0.13.0 |
 
-If you find a new version of Nushell rejects this plugin as incompatible, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
+Since version 0.13, the plugin claims compatability with whatever version of Nu happens to be on the path.  This avoids having to keep version-bumping the plugin for each new release of Nu.
+
+The drawback is unexpected breakage may occur.
+
+If you find a new version of Nushell breaks the plugin, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
 
 ## Dependencies
 
