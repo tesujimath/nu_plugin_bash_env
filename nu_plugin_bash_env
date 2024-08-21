@@ -23,7 +23,7 @@
 # SOFTWARE.
 
 VERSION="0.13.0"
-PROTOCOL_VERSION="$(nu --version)"
+PROTOCOL_VERSION="0.97.1"
 
 shopt -s extglob
 

@@ -1,14 +1,20 @@
 use std::path::PathBuf;
 
 use nu_plugin::{serve_plugin, EvaluatedCall, JsonSerializer};
-use nu_plugin::{EngineInterface, Plugin, PluginCommand, SimplePluginCommand};
-use nu_protocol::{Category, LabeledError, Record, Signature, Span, SyntaxShape, Type, Value};
+use nu_plugin::{EngineInterface, Plugin, PluginCommand};
+use nu_protocol::{
+    Category, IntoPipelineData, LabeledError, PipelineData, Record, Signature, Span, SyntaxShape,
+    Type, Value,
+};
+use shellexpand::tilde;
+use tracing::debug;
+use tracing_subscriber::EnvFilter;
 
-struct BashEnvApiPlugin;
+struct BashEnvPlugin;
 
-impl Plugin for BashEnvApiPlugin {
+impl Plugin for BashEnvPlugin {
     fn commands(&self) -> Vec<Box<dyn PluginCommand<Plugin = Self>>> {
-        vec![Box::new(BashEnvApi)]
+        vec![Box::new(BashEnv)]
     }
 
     fn version(&self) -> String {
@@ -16,13 +22,13 @@ impl Plugin for BashEnvApiPlugin {
     }
 }
 
-struct BashEnvApi;
+struct BashEnv;
 
-impl SimplePluginCommand for BashEnvApi {
-    type Plugin = BashEnvApiPlugin;
+impl PluginCommand for BashEnv {
+    type Plugin = BashEnvPlugin;
 
     fn name(&self) -> &str {
-        "bash-env-api"
+        "bash-env"
     }
 
     fn usage(&self) -> &str {
@@ -37,7 +43,7 @@ impl SimplePluginCommand for BashEnvApi {
             .named(
                 "export",
                 SyntaxShape::List(Box::new(SyntaxShape::String)),
-                "list of shell variables to export",
+                "shell variables to export",
                 None,
             )
             .input_output_types(vec![(Type::Nothing, Type::Any), (Type::String, Type::Any)])
@@ -47,33 +53,45 @@ impl SimplePluginCommand for BashEnvApi {
 
     fn run(
         &self,
-        _plugin: &BashEnvApiPlugin,
+        _plugin: &Self::Plugin,
         engine: &EngineInterface,
         call: &EvaluatedCall,
-        input: &Value,
-    ) -> Result<Value, LabeledError> {
+        input: nu_protocol::PipelineData,
+    ) -> Result<nu_protocol::PipelineData, LabeledError> {
         let _cwd = engine.get_current_dir();
 
         let span = input.span();
-        match call.positional.first() {
+        let path = match call.positional.first() {
             Some(value @ Value::String { val: path, .. }) => {
-                if PathBuf::from(path).exists() {
-                    Ok(create_dummy_environment(span, call.head))
+                let path = PathBuf::from(tilde(path).into_owned());
+                if path.exists() {
+                    Some(path)
                 } else {
-                    Err(create_error(format!("no such file {}", path), value.span()))
+                    Err(create_error(
+                        format!("no such file {:?}", path),
+                        value.span(),
+                    ))?
                 }
             }
-            None => Ok(create_dummy_environment(span, call.head)),
+            None => None,
             Some(value) => Err(create_error(
                 format!("positional requires string; got {}", value.get_type()),
                 call.head,
-            )),
-        }
+            ))?,
+        };
+        let stdin = match input {
+            PipelineData::ByteStream(s, _metadata) => Some(s),
+            _ => None,
+        };
+
+        debug!("run path={:?} stdin={}", &path, stdin.is_some());
+
+        Ok(create_environment(span.unwrap_or(Span::unknown()), call.head).into_pipeline_data())
     }
 }
 
-fn create_dummy_environment(input_span: Span, creation_site_span: Span) -> Value {
-    let cols_vals = [("A", "a"), ("B", "b"), ("C", "c")];
+fn create_environment(input_span: Span, creation_site_span: Span) -> Value {
+    let cols_vals = [("A", "a"), ("B", "b"), ("C", "c1")];
     let cols = cols_vals
         .iter()
         .map(|s| s.0.to_string())
@@ -92,9 +110,15 @@ fn create_error<S>(msg: S, creation_site_span: Span) -> LabeledError
 where
     S: Into<String>,
 {
-    LabeledError::new(msg).with_label("bash-env-api", creation_site_span)
+    LabeledError::new(msg).with_label("bash-env", creation_site_span)
 }
 
 fn main() {
-    serve_plugin(&BashEnvApiPlugin, JsonSerializer)
+    let subscriber = tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .finish();
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("failed to setup tracing subscriber");
+
+    serve_plugin(&BashEnvPlugin, JsonSerializer)
 }
