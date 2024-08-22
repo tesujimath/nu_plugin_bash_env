@@ -182,7 +182,7 @@ fn bash_env(
             ..Default::default()
         },
     )
-    .with_context(|| format!("popen({})", script_path))?;
+    .with_context(|| format!("Popen::create({})", script_path))?;
 
     let (out, err) = p
         .communicate(stdin.as_deref())
@@ -243,12 +243,16 @@ fn main() {
 
     // prefer to take the path from the environment variable, falling back to writing a temporary file
     // with contents taken from the embedded script
-    let script_path_from_env = env::var("NU_PLUGIN_BASH_ENV_SCRIPT").ok();
+    let script_path_env_var = "NU_PLUGIN_BASH_ENV_SCRIPT";
+    let script_path_from_env = env::var(script_path_env_var).ok();
     #[allow(unused_assignments)]
     let mut tempdir: Option<TempDir> = None;
 
     let script_path = match script_path_from_env {
-        Some(path) => path,
+        Some(path) => {
+            debug!("using {} from {}", &path, script_path_env_var);
+            path
+        }
         None => {
             tempdir = Some(TempDir::new().expect("failed to create tempdir for bash script"));
             extract_embedded_script(tempdir.as_ref().unwrap())
