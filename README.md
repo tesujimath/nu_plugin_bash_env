@@ -4,13 +4,9 @@ A Bash environment plugin for Nushell.
 
 For instructions on how to use this plugin, see the [Nushell book](https://www.nushell.sh/book/plugins.html).
 
-In summary, save the `nu_plugin_bash_env` script in your Nu plugins directory (for example) and ensure it is executable.
-For users of Nix, this is now installable as a flake (see below).
+In summary, build the crate and add the resulting `nu_plugin_bash_env` executable as a plugin using `plugin add`, then `plugin use`.
 
-Then in Nu:
-```
-> register nu_plugin_bash_env
-```
+For users of Nix, this is now installable as a flake (see below).
 
 The plugin reads the specified environment file (if any) and evaluates variables from `stdin` (if any) and returns any new or changed environment variables as a record, suitable for passing to Nu's `load-env`.
 
@@ -31,14 +27,15 @@ The following versions are compatible.
 |    0.94 |          0.10.0 |
 |    0.95 |          0.11.0 |
 |    0.96 |          0.12.1 |
+|    0.97 |          0.13.0 |
 
 If you find a new version of Nushell rejects this plugin as incompatible, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
 
 ## Dependencies
 
-The script uses `jq` for heavy lifting.  [At least jq version 1.7 is required](https://github.com/tesujimath/nu_plugin_bash_env/issues/24).
+The script uses `jq` for output formatting. Previous versions required at least `jq` version `1.7`, but that may be no longer the case.
 
-Also I suspect at least Bash version 5.1.
+Also I suspect at least Bash version `5.1`.
 
 ## Examples
 
@@ -128,9 +125,17 @@ Care has been taken to escape any special characters.
 "Well done!" is better than "Well said!"
 ```
 
-## API
+## Implementation
 
-Because this plugin is written in Bash, the API signatures must be written by hand.  The [api](api) sub-directory contains a Rust program to produce what is required, using the official Nu plugin library.
+Prior to 0.13.0 this plugin was written in Bash, with the Nu plugin protocol done by hand using `jq`, with insights from the [api](api) sub-directory which contained a Rust program to produce what is required, using the official Nu plugin library.  This was too onerous to maintain through the evolution of the protocol, so was abandoned.
+
+Since 0.13.0, the plugin is written in Rust, with the much simplified Bash script embedded.
+
+By default the embedded Bash script is extracted at runtime into a temporary directory.  This behaviour may be overridden by setting the ``NU_PLUGIN_BASH_ENV_SCRIPT` environment variable, which is then expected to resolve to the path of the pre-installed script.
+
+## Logging
+
+Logging is supported via the Rust `tracing-subscriber` crate, with log-level defined by the environment variable `NU_PLUGIN_BASH_ENV_LOG`.
 
 ## Nix flake
 
