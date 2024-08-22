@@ -80,11 +80,16 @@ impl PluginCommand for BashEnv {
             ))?,
         };
         let stdin = match input {
-            PipelineData::ByteStream(s, _metadata) => Some(s),
-            _ => None,
+            // TODO: pipe the stream into the subprocess rather than via a string
+            PipelineData::ByteStream(bytes, _metadata) => Some(bytes.into_string()?),
+            PipelineData::Value(Value::String { val: stdin, .. }, _metadata) => Some(stdin),
+            _ => {
+                debug!("PipelineData {:?}", input);
+                None
+            }
         };
 
-        debug!("run path={:?} stdin={}", &path, stdin.is_some());
+        debug!("run path={:?} stdin={:?}", &path, stdin);
 
         Ok(create_environment(span.unwrap_or(Span::unknown()), call.head).into_pipeline_data())
     }
