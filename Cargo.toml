@@ -9,6 +9,7 @@ repository = "https://github.com/tesujimath/nu_plugin_bash_env"
 readme = "README.md"
 
 [dependencies]
+itertools = "0.13.0"
 nu-plugin = "0.97.1"
 nu-protocol = "0.97.1"
 once_cell = "1.19.0"

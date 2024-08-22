@@ -9,7 +9,12 @@ use once_cell::sync::OnceCell;
 use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
-use std::{env, fs, io::Write, os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{
+    env, fs,
+    io::Write,
+    os::unix::fs::PermissionsExt,
+    path::{Path, PathBuf},
+};
 use subprocess::{Popen, PopenConfig};
 use tempfile::TempDir;
 use tracing::debug;
@@ -69,7 +74,8 @@ impl PluginCommand for BashEnv {
         let path = match call.positional.first() {
             Some(value @ Value::String { val: path, .. }) => {
                 let path = PathBuf::from(tilde(path).into_owned());
-                if path.exists() {
+                let abs_path = Path::new(&cwd).join(&path);
+                if abs_path.exists() {
                     Some(path.into_os_string().into_string().unwrap())
                 } else {
                     Err(create_error(
@@ -84,6 +90,29 @@ impl PluginCommand for BashEnv {
                 call.head,
             ))?,
         };
+
+        let export = call
+            .named
+            .iter()
+            .filter(|&(name, _value)| (name.item == "export"))
+            .map(|(_name, value)| {
+                if let Some(Value::List { vals, .. }) = value {
+                    vals.iter()
+                        .filter_map(|value| {
+                            if let Value::String { val, .. } = value {
+                                Some(val.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<String>>()
+                } else {
+                    Vec::default()
+                }
+            })
+            .next()
+            .unwrap_or_default();
+
         let stdin = match input {
             // TODO: pipe the stream into the subprocess rather than via a string
             PipelineData::ByteStream(bytes, _metadata) => Some(bytes.into_string()?),
@@ -94,10 +123,20 @@ impl PluginCommand for BashEnv {
             }
         };
 
-        debug!("run path={:?} stdin={:?}", &path, stdin);
+        debug!(
+            "run path={:?} stdin={:?} export={:?} cwd={:?}",
+            &path, &stdin, &export, &cwd
+        );
 
-        bash_env(span.unwrap_or(Span::unknown()), call.head, stdin, path, cwd)
-            .map(|value| value.into_pipeline_data())
+        bash_env(
+            span.unwrap_or(Span::unknown()),
+            call.head,
+            stdin,
+            path,
+            export,
+            cwd,
+        )
+        .map(|value| value.into_pipeline_data())
     }
 }
 
@@ -106,6 +145,7 @@ fn bash_env(
     creation_site_span: Span,
     stdin: Option<String>,
     path: Option<String>,
+    export: Vec<String>,
     cwd: String,
 ) -> Result<Value, LabeledError> {
     let script_path = bash_env_script_path();
@@ -116,6 +156,10 @@ fn bash_env(
     if let Some(ref path) = path {
         argv.push(path.as_str());
     }
+    let exports =
+        itertools::Itertools::intersperse(export.into_iter(), ",".to_string()).collect::<String>();
+    argv.push("--export");
+    argv.push(exports.as_str());
 
     debug!("popen({:?})", &argv);
 
