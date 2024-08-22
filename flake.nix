@@ -12,19 +12,49 @@
       (system:
         let
           overlays = [ (import rust-overlay) ];
+
           pkgs = import nixpkgs {
             inherit system overlays;
           };
+
           # cargo-nightly based on https://github.com/oxalica/rust-overlay/issues/82
           nightly = pkgs.rust-bin.selectLatestNightlyWith (t: t.default);
           cargo-nightly = pkgs.writeShellScriptBin "cargo-nightly" ''
             export RUSTC="${nightly}/bin/rustc";
             exec "${nightly}/bin/cargo" "$@"
           '';
-          # TODO:
-          # nu_plugin_bash_env = pkgs.writeShellScriptBin "nu_plugin_bash_env"
-          #   (builtins.replaceStrings [ "jq" "(cat)" " sed " ] [ "${pkgs.jq}/bin/jq" "(${pkgs.coreutils}/bin/cat)" " ${pkgs.gnused}/bin/sed " ]
-          #     (builtins.readFile ./nu_plugin_bash_env));
+
+          nu_plugin_bash_env_script = pkgs.writeShellScriptBin "nu_plugin_bash_env_script"
+            (builtins.replaceStrings [ "jq" "(cat)" " sed " ] [ "${pkgs.jq}/bin/jq" "(${pkgs.coreutils}/bin/cat)" " ${pkgs.gnused}/bin/sed " ]
+              (builtins.readFile ./scripts/bash_env.sh));
+
+          nu_plugin_bash_env = pkgs.rustPlatform.buildRustPackage
+            rec {
+              pname = "nu_plugin_bash_env";
+              version = "0.13.0";
+
+              src = pkgs.fetchFromGitHub {
+                owner = "tesujimath";
+                repo = pname;
+                rev = version;
+                sha256 = "sha256-fWFBGeNqrJj+fT8EusS8VhxoCmncqhQUplPEHOJlqRA=";
+              };
+
+              cargoHash = "sha256-AIdjurbZEgi6lDefLu/zA18rfBTLtsBvCiLGPZOnsNk=";
+
+              meta = with pkgs.lib; {
+                description = "A Bash environment plugin for Nushell";
+                homepage = "https://github.com/tesujimath/nu_plugin_bash_env";
+                license = licenses.mit;
+                maintainers = [ maintainers.tailhook ];
+              };
+
+              buildInputs = [ pkgs.makeWrapper ];
+
+              postFixup = ''
+                wrapProgram $out/bin/nu_plugin_bash_env --set NU_PLUGIN_BASH_ENV_SCRIPT ${nu_plugin_bash_env_script}/bin/nu_plugin_bash_env_script
+              '';
+            };
         in
         with pkgs;
         {
@@ -38,8 +68,8 @@
               rust-bin.stable.latest.default
             ];
           };
-          # TODO: build package from Rust crate
-          # packages.default = nu_plugin_bash_env;
+
+          packages.default = nu_plugin_bash_env;
         }
       );
 }
