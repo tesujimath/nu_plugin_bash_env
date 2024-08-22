@@ -119,7 +119,7 @@ fn bash_env(
 
     debug!("popen({:?})", &argv);
 
-    let p = Popen::create(
+    let mut p = Popen::create(
         argv.as_slice(),
         PopenConfig {
             stdin: if stdin.is_some() {
@@ -134,15 +134,16 @@ fn bash_env(
     )
     .map_err(|e| create_error(format!("popen({}): {}", script_path, e), input_span))?;
 
-    if let Some(stdin) = stdin {
-        p.stdin
-            .as_ref()
-            .unwrap()
-            .write_all(stdin.as_bytes())
-            .map_err(to_labeled)?;
+    let (out, err) = p
+        .communicate(stdin.as_deref())
+        .map_err(|e| create_error(format!("popen.communicate(): {}", e), input_span))?;
+    if let Some(err) = err {
+        std::io::stderr()
+            .write_all(err.as_bytes())
+            .map_err(|e| create_error(format!("popen({}): {}", script_path, e), input_span))?;
     }
 
-    match serde_json::from_reader(p.stdout.as_ref().unwrap())
+    match serde_json::from_str(out.as_ref().unwrap())
         .map_err(|e| create_error(format!("serde_json::from_reader(): {}", e), input_span))?
     {
         BashEnvResult::Env(env) => Ok(create_record(env, input_span, creation_site_span)),
@@ -181,16 +182,9 @@ where
     LabeledError::new(msg).with_label("bash-env", creation_site_span)
 }
 
-fn to_labeled<E>(e: E) -> LabeledError
-where
-    E: std::error::Error,
-{
-    create_error(e.to_string(), Span::unknown())
-}
-
 fn main() {
     let subscriber = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(EnvFilter::from_env("NU_PLUGIN_BASH_ENV_LOG"))
         .finish();
     tracing::subscriber::set_global_default(subscriber)
         .expect("failed to setup tracing subscriber");
