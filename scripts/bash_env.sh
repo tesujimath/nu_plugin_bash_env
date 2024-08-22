@@ -75,9 +75,7 @@ function send_error() {
     _msg="$1"
     jq -c <<EOF
 {
-  "Error": {
-    "msg": "$_msg"
-  }
+  "Error": "$_msg"
 }
 EOF
 }
