@@ -1,3 +1,4 @@
+#![doc = include_str!("../README.md")]
 use anyhow::{anyhow, Context};
 use nu_plugin::{
     serve_plugin, EngineInterface, EvaluatedCall, JsonSerializer, Plugin, PluginCommand,
