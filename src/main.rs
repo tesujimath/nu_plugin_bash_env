@@ -233,36 +233,49 @@ fn main() {
     tracing::subscriber::set_global_default(subscriber)
         .expect("failed to setup tracing subscriber");
 
-    serve_plugin(&BashEnvPlugin, JsonSerializer)
+    // prefer to take the path from the environment variable, falling back to writing a temporary file
+    // with contents taken from the embedded script
+    let script_path_from_env = env::var("NU_PLUGIN_BASH_ENV_SCRIPT").ok();
+    #[allow(unused_assignments)]
+    let mut tempdir: Option<TempDir> = None;
+
+    let script_path = match script_path_from_env {
+        Some(path) => path,
+        None => {
+            tempdir = Some(TempDir::new().expect("failed to create tempdir for bash script"));
+            extract_embedded_script(tempdir.as_ref().unwrap())
+        }
+    };
+
+    BASH_ENV_SCRIPT_PATH.get_or_init(|| script_path);
+
+    serve_plugin(&BashEnvPlugin, JsonSerializer);
+
+    debug!("removing tempdir");
+
+    debug!("all done");
+}
+
+fn extract_embedded_script(tempdir: &TempDir) -> String {
+    let path = tempdir.path().join("bash_env.sh").to_path_buf();
+    fs::write(&path, Scripts::get("bash_env.sh").unwrap().data.as_ref()).unwrap();
+
+    // make executable
+    let mut perms = fs::metadata(&path)
+        .unwrap_or_else(|e| panic!("metadata({:?}): {}", &path, e))
+        .permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&path, perms)
+        .unwrap_or_else(|e| panic!("set_permissions({:?}): {}", &path, e));
+
+    path.into_os_string().into_string().unwrap()
 }
 
 fn bash_env_script_path() -> &'static str {
-    // prefer to take the path from the environment variable, falling back to writing a temporary file
-    // with contents taken from the embedded script
-    BASH_ENV_SCRIPT_PATH.get_or_init(|| {
-        if let Ok(path) = env::var("NU_PLUGIN_BASH_ENV_SCRIPT") {
-            path
-        } else {
-            let tempdir = TempDir::new().unwrap();
-            let path = tempdir.path().join("bash_env.sh").to_path_buf();
-            fs::write(&path, Scripts::get("bash_env.sh").unwrap().data.as_ref()).unwrap();
-
-            // make executable
-            let mut perms = fs::metadata(&path)
-                .unwrap_or_else(|e| panic!("metadata({:?}): {}", &path, e))
-                .permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(&path, perms)
-                .unwrap_or_else(|e| panic!("set_permissions({:?}): {}", &path, e));
-
-            BASH_ENV_SCRIPT_TEMPDIR.set(tempdir).unwrap();
-            path.into_os_string().into_string().unwrap()
-        }
-    })
+    BASH_ENV_SCRIPT_PATH.get().unwrap()
 }
 
 static BASH_ENV_SCRIPT_PATH: OnceCell<String> = OnceCell::new();
-static BASH_ENV_SCRIPT_TEMPDIR: OnceCell<TempDir> = OnceCell::new();
 
 // embed the bash script
 #[derive(Embed)]
