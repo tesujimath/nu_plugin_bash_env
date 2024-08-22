@@ -96,13 +96,14 @@ impl PluginCommand for BashEnv {
 
         debug!("run path={:?} stdin={:?}", &path, stdin);
 
-        bash_env(span.unwrap_or(Span::unknown()), stdin, path, cwd)
+        bash_env(span.unwrap_or(Span::unknown()), call.head, stdin, path, cwd)
             .map(|value| value.into_pipeline_data())
     }
 }
 
 fn bash_env(
     input_span: Span,
+    creation_site_span: Span,
     stdin: Option<String>,
     path: Option<String>,
     cwd: String,
@@ -141,16 +142,36 @@ fn bash_env(
             .map_err(to_labeled)?;
     }
 
-    match serde_json::from_reader(p.stdout.as_ref().unwrap()).map_err(to_labeled)? {
-        BashEnvResult::Record(value) => Ok(Value::record(value, input_span)),
+    match serde_json::from_reader(p.stdout.as_ref().unwrap())
+        .map_err(|e| create_error(format!("serde_json::from_reader(): {}", e), input_span))?
+    {
+        BashEnvResult::Env(env) => Ok(create_record(env, input_span, creation_site_span)),
         BashEnvResult::Error(msg) => Err(create_error(msg, Span::unknown())),
     }
 }
 
+fn create_record(env: Vec<KV>, input_span: Span, creation_site_span: Span) -> Value {
+    let cols = env.iter().map(|kv| kv.k.clone()).collect::<Vec<_>>();
+    let vals = env
+        .iter()
+        .map(|kv| Value::string(kv.v.clone(), Span::unknown()))
+        .collect::<Vec<_>>();
+    Value::record(
+        Record::from_raw_cols_vals(cols, vals, input_span, creation_site_span).unwrap(),
+        input_span,
+    )
+}
+
 #[derive(Serialize, Deserialize)]
 enum BashEnvResult {
-    Record(Record),
+    Env(Vec<KV>),
     Error(String),
+}
+
+#[derive(Serialize, Deserialize)]
+struct KV {
+    k: String,
+    v: String,
 }
 
 fn create_error<S>(msg: S, creation_site_span: Span) -> LabeledError

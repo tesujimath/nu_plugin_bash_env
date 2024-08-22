@@ -46,19 +46,19 @@ function send_environment() {
     _tail=("$@")
 
     # header
-    echo -n "{\"Value\":{\"Record\":{\"val\":{"
+    echo -n "{\"Env\":["
 
     # names and values
     if test $_n_env -gt 0; then
-        echo -n "\"$_head\":{\"String\":{\"val\":"
+        echo -n "{\"k\":\"$_head\",\"v\":"
         send_value "${!_head}"
-        echo -n ",\"span\":{\"start\":0,\"end\":0}}}"
+        echo -n "}"
 
         for _name in "${_tail[@]}"; do
             if test -v "$_name"; then
-                echo -n ",\"$_name\":{\"String\":{\"val\":"
+                echo -n ",{\"k\":\"$_name\",\"v\":"
                 send_value "${!_name}"
-                echo -n ",\"span\":{\"start\":0,\"end\":0}}}"
+                echo -n "}"
             else
                 # unset, TODO
                 :
@@ -67,7 +67,7 @@ function send_environment() {
     fi
 
     # trailer
-    echo '},"span":{"start":0,"end":0}}}}'
+    echo ']}'
 }
 
 function send_error() {
