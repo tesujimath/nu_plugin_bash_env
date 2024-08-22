@@ -17,7 +17,7 @@ use std::{
 };
 use subprocess::{Popen, PopenConfig};
 use tempfile::TempDir;
-use tracing::debug;
+use tracing::{debug, info, trace};
 use tracing_subscriber::EnvFilter;
 
 struct BashEnvPlugin;
@@ -113,19 +113,20 @@ impl PluginCommand for BashEnv {
             .next()
             .unwrap_or_default();
 
+        trace!("PipelineData {:?}", &input);
         let stdin = match input {
             // TODO: pipe the stream into the subprocess rather than via a string
             PipelineData::ByteStream(bytes, _metadata) => Some(bytes.into_string()?),
             PipelineData::Value(Value::String { val: stdin, .. }, _metadata) => Some(stdin),
-            _ => {
-                debug!("PipelineData {:?}", input);
-                None
-            }
+            _ => None,
         };
 
-        debug!(
-            "run path={:?} stdin={:?} export={:?} cwd={:?}",
-            &path, &stdin, &export, &cwd
+        trace!(
+            "path={:?} stdin={:?} export={:?} cwd={:?}",
+            &path,
+            &stdin,
+            &export,
+            &cwd
         );
 
         bash_env(
@@ -161,7 +162,7 @@ fn bash_env(
     argv.push("--export");
     argv.push(exports.as_str());
 
-    debug!("popen({:?})", &argv);
+    trace!("Popen::create({:?})", &argv);
 
     let mut p = Popen::create(
         argv.as_slice(),
@@ -233,6 +234,8 @@ fn main() {
     tracing::subscriber::set_global_default(subscriber)
         .expect("failed to setup tracing subscriber");
 
+    debug!("starting");
+
     // prefer to take the path from the environment variable, falling back to writing a temporary file
     // with contents taken from the embedded script
     let script_path_from_env = env::var("NU_PLUGIN_BASH_ENV_SCRIPT").ok();
@@ -251,14 +254,17 @@ fn main() {
 
     serve_plugin(&BashEnvPlugin, JsonSerializer);
 
-    debug!("removing tempdir");
+    if let Some(tempdir) = tempdir {
+        info!("removing {:?}", tempdir.path());
+    }
 
-    debug!("all done");
+    debug!("exiting");
 }
 
 fn extract_embedded_script(tempdir: &TempDir) -> String {
-    let path = tempdir.path().join("bash_env.sh").to_path_buf();
-    fs::write(&path, Scripts::get("bash_env.sh").unwrap().data.as_ref()).unwrap();
+    let script = "bash_env.sh";
+    let path = tempdir.path().join(script).to_path_buf();
+    fs::write(&path, Scripts::get(script).unwrap().data.as_ref()).unwrap();
 
     // make executable
     let mut perms = fs::metadata(&path)
@@ -268,7 +274,9 @@ fn extract_embedded_script(tempdir: &TempDir) -> String {
     fs::set_permissions(&path, perms)
         .unwrap_or_else(|e| panic!("set_permissions({:?}): {}", &path, e));
 
-    path.into_os_string().into_string().unwrap()
+    let path = path.into_os_string().into_string().unwrap();
+    info!("extracted {} into {}", script, &path);
+    path
 }
 
 fn bash_env_script_path() -> &'static str {
