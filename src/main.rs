@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Context};
 use nu_plugin::{
     serve_plugin, EngineInterface, EvaluatedCall, JsonSerializer, Plugin, PluginCommand,
 };
@@ -67,7 +68,7 @@ impl PluginCommand for BashEnv {
         engine: &EngineInterface,
         call: &EvaluatedCall,
         input: nu_protocol::PipelineData,
-    ) -> Result<nu_protocol::PipelineData, LabeledError> {
+    ) -> std::result::Result<nu_protocol::PipelineData, LabeledError> {
         let cwd = engine.get_current_dir()?;
 
         let span = input.span();
@@ -87,7 +88,7 @@ impl PluginCommand for BashEnv {
             None => None,
             Some(value) => Err(create_error(
                 format!("positional requires string; got {}", value.get_type()),
-                call.head,
+                value.span(),
             ))?,
         };
 
@@ -138,6 +139,9 @@ impl PluginCommand for BashEnv {
             cwd,
         )
         .map(|value| value.into_pipeline_data())
+        .map_err(|e| {
+            LabeledError::new(e.to_string()).with_label("bash-env", span.unwrap_or(Span::unknown()))
+        })
     }
 }
 
@@ -148,7 +152,7 @@ fn bash_env(
     path: Option<String>,
     export: Vec<String>,
     cwd: String,
-) -> Result<Value, LabeledError> {
+) -> anyhow::Result<Value> {
     let script_path = bash_env_script_path();
     let mut argv: Vec<_> = [script_path].into();
     if stdin.is_some() {
@@ -177,22 +181,22 @@ fn bash_env(
             ..Default::default()
         },
     )
-    .map_err(|e| create_error(format!("popen({}): {}", script_path, e), input_span))?;
+    .with_context(|| format!("popen({})", script_path))?;
 
     let (out, err) = p
         .communicate(stdin.as_deref())
-        .map_err(|e| create_error(format!("popen.communicate(): {}", e), input_span))?;
+        .with_context(|| "Popen::communicate()")?;
     if let Some(err) = err {
         std::io::stderr()
             .write_all(err.as_bytes())
-            .map_err(|e| create_error(format!("popen({}): {}", script_path, e), input_span))?;
+            .with_context(|| "stderr.write_all()")?;
     }
 
     match serde_json::from_str(out.as_ref().unwrap())
-        .map_err(|e| create_error(format!("serde_json::from_reader(): {}", e), input_span))?
+        .with_context(|| "serde_json::from_reader()")?
     {
         BashEnvResult::Env(env) => Ok(create_record(env, input_span, creation_site_span)),
-        BashEnvResult::Error(msg) => Err(create_error(msg, Span::unknown())),
+        BashEnvResult::Error(msg) => Err(anyhow!(msg)),
     }
 }
 
