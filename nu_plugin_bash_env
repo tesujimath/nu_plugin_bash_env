@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright 2023 Simon Guest
+# Copyright 2023-24 Simon Guest
 #
 # Permission is hereby granted, free of charge, to any person
 # obtaining a copy of this software and associated documentation files
@@ -22,114 +22,7 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-VERSION="0.13.0"
-PROTOCOL_VERSION="0.97.1"
-
 shopt -s extglob
-
-function send_encoder() {
-    echo -en "\04json"
-}
-
-function send_hello() {
-    jq -c <<EOF
-{
-  "Hello": {
-    "protocol": "nu-plugin",
-    "version": "$PROTOCOL_VERSION",
-    "features": []
-  }
-}
-EOF
-}
-
-function send_metadata() {
-    _call_id="$1"
-    jq -c <<EOF
-{
-  "CallResponse": [
-    $_call_id,
-    {
-      "Metadata": {
-          "version": "$VERSION"
-      }
-    }
-  ]
-}
-EOF
-}
-
-function send_signature() {
-    _call_id="$1"
-    jq -c <<EOF
-{
-  "CallResponse": [
-    $_call_id,
-    {
-      "Signature": [
-        {
-          "sig": {
-            "name": "bash-env",
-            "usage": "get environment variables from Bash format file and/or stdin",
-            "extra_usage": "",
-            "search_terms": [],
-            "required_positional": [],
-            "optional_positional": [
-              {
-                "name": "path",
-                "desc": "path to environment file",
-                "shape": "String",
-                "var_id": null,
-                "default_value": null
-              }
-            ],
-            "rest_positional": null,
-            "named": [
-              {
-                "long": "help",
-                "short": "h",
-                "arg": null,
-                "required": false,
-                "desc": "Display the help message for this command",
-                "var_id": null,
-                "default_value": null
-              },
-              {
-                "long": "export",
-                "short": null,
-                "arg": {
-                  "List": "String"
-                },
-                "required": false,
-                "desc": "Shell variables to export",
-                "var_id": null,
-                "default_value": null
-              }
-            ],
-            "input_output_types": [
-              [
-                "Nothing",
-                "Any"
-              ],
-              [
-                "String",
-                "Any"
-              ]
-            ],
-            "allow_variants_without_examples": true,
-            "is_filter": true,
-            "creates_scope": false,
-            "allows_unknown_args": false,
-            "category": "Env"
-          },
-          "examples": []
-        }
-      ]
-    }
-  ]
-}
-EOF
-}
 
 function send_value() {
     # jq -R produces nothing on empty input, but we want ""
@@ -153,8 +46,7 @@ function send_environment() {
     _tail=("$@")
 
     # header
-    echo -n "{\"CallResponse\":[$_call_id,{\"PipelineData\":{"
-    echo -n "\"Value\":{\"Record\":{\"val\":{"
+    echo -n "{\"Value\":{\"Record\":{\"val\":{"
 
     # names and values
     if test $_n_env -gt 0; then
@@ -175,43 +67,24 @@ function send_environment() {
     fi
 
     # trailer
-    echo '},"span":{"start":0,"end":0}}}}}]}'
+    echo '},"span":{"start":0,"end":0}}}}'
 }
 
 function send_error() {
-    local _call_id _msg
-    _call_id="$1"
-    _msg="$2"
+    local _msg
+    _msg="$1"
     jq -c <<EOF
 {
-  "CallResponse": [
-    $_call_id,
-    {
-      "Error": {
-        "msg": "$_msg",
-        "labels": [
-          {
-            "text": "bash-env",
-            "span": {
-              "start": 0,
-              "end": 0
-            }
-          }
-        ],
-        "code": null,
-        "url": null,
-        "help": null,
-        "inner": []
-      }
-    }
-  ]
+  "Error": {
+    "msg": "$_msg"
+  }
 }
 EOF
 }
 
 function eval_and_or_source_then_send_environment() {
     local _source _path _name _value _env_old _env_new _env_changed_or_unset _call_id _exports _export
-    _call_id="$1"
+    _source="$1"
     shift
 
     _path="$1"
@@ -231,22 +104,21 @@ function eval_and_or_source_then_send_environment() {
     if test -n "$_path"; then
 
         if test ! -r "$_path"; then
-            send_error "$_call_id" "no such file '$_path'"
+            send_error "no such file '$_path'"
             return
         fi
 
         # ShellCheck can't cope with sourcing from an unknown path
         # shellcheck disable=SC1090
         if ! source "$_path" >&2; then
-            send_error "$_call_id" "failed to load environment from '$_path'"
+            send_error "failed to load environment from '$_path'"
             return 1
         fi
     fi
 
-    # eval from stdin until EOF
-    _source=$(cat)
+    # eval from _source
     if ! eval "$_source" >&2; then
-        send_error "$_call_id" "failed to load environment from stdin"
+        send_error "failed to load environment from stdin"
         return 1
     fi
 
@@ -281,136 +153,8 @@ function eval_and_or_source_then_send_environment() {
     send_environment "$_call_id" "${_env_changed_or_unset[@]}" | jq -c
 }
 
-function read_stream() {
-    local _line _data_id _active_streams
-    local _stream_id="$1"
-
-    declare -A _active_streams
-    _active_streams["$_stream_id"]=X
-    shift
-
-    # get other active streams
-    while test -n "$1"; do
-        _active_streams["$1"]=X
-        shift
-    done
-
-    while true; do
-        read -rs _line
-
-        # blank line handling
-        if test -z "$_line"; then
-            break
-        fi
-
-        case "$_line" in
-        \{\"Data\":\[+([0-9]),*)
-            _data_id=$(jq '.Data[0]' <<<"$_line")
-            if test "${_data_id}" = "${_stream_id}"; then
-                # sed is used to remove empty lines, to mitigate the double newline
-                jq -r '.Data[1].Raw.Ok | implode' <<<"$_line" | sed -r '/^$/d'
-            fi
-            ;;
-        \{\"End\":[0-9]*)
-            _end_id=$(jq '.End' <<<"$_line")
-            unset "_active_streams[$_end_id]"
-            ;;
-        esac
-
-        if test "${#_active_streams[@]}" == 0; then
-            break
-        fi
-    done
-}
-
-function get_current_dir_request() {
-    local _call_id
-
-    _call_id="$1"
-    echo "{\"EngineCall\":{\"context\":$_call_id,\"id\":0,\"call\":\"GetCurrentDir\"}}"
-}
-
-function get_current_dir_response() {
-    local _line
-
-    read -rs _line
-    echo "$_line" | jq -r '.EngineCallResponse[1].PipelineData.Value.String.val'
-}
-
-function run_as_plugin() {
-    local _line _path _stdinval _call_id _stdout_id _exports _cwd
-    declare -a _exports
-    send_encoder
-
-    while true; do
-        read -rs _line
-
-        # blank line handling
-        if test -z "$_line"; then
-            break
-        fi
-
-        case "$_line" in
-        \{\"Hello\":*)
-            send_hello
-            ;;
-        \"Goodbye\")
-            exit
-            ;;
-        \{\"Call\":\[+([0-9]),*)
-            _call_id=$(jq '.Call[0]' <<<"$_line")
-            case "$_line" in
-            \{\"Call\":\[+([0-9]),\"Metadata\"*)
-                send_metadata "$_call_id"
-                ;;
-            \{\"Call\":\[+([0-9]),\"Signature\"*)
-                send_signature "$_call_id"
-                ;;
-            \{\"Call\":\[+([0-9]),\{\"Run\"*)
-                _path=$(echo "$_line" | jq -r '.Call[1].Run.call.positional[0].String.val // empty')
-                # Nushell may pass through ~ verbatim which we must cope with explicitly
-                _path="${_path/#\~/$HOME}"
-
-                # relative path requires us to determine cwd from the engine
-                if test -n "$_path" -a "${_path::1}" != /; then
-                    get_current_dir_request "$_call_id"
-                    _cwd=$(get_current_dir_response)
-                    _path="$_cwd/$_path"
-                fi
-
-                # stdin could come in different ways, or not at all:
-                case $(echo "$_line" | jq -r '.Call[1].Run.input | if . == "Empty" then "Empty" elif .Value.String | has("val") then "String" elif has("ByteStream") then "ByteStream" else "Other" end') in
-                Empty)
-                    _stdinval=""
-                    ;;
-                String)
-                    _stdinval=$(echo "$_line" | jq -r '.Call[1].Run.input.Value.String.val')
-                    ;;
-                ByteStream)
-                    _stdout_id=$(echo "$_line" | jq -r '.Call[1].Run.input.ByteStream.id')
-                    _stdinval=$(read_stream "$_stdout_id")
-                    ;;
-                esac
-
-                # get exports, if any
-                mapfile -t _exports < <(echo "$_line" | jq -r '.Call[1].Run.call.named // [] | .[] | select(.[0].item == "export") | .[1].List.vals.[].String.val')
-
-                echo "$_stdinval" | eval_and_or_source_then_send_environment "$_call_id" "$_path" "${_exports[@]}"
-                ;;
-            *)
-                echo >&2 "unexpected call: $_line"
-                ;;
-            esac
-            ;;
-        *)
-            echo >&2 "unexpected input: $_line"
-            ;;
-        esac
-    done
-}
-
 function bad_usage() {
-    echo >&2 "usage: nu_plugin_bash_env [--stdio] [--standalone [sig | to-json <env-file>]]"
+    echo >&2 "usage: nu_plugin_bash_env [--stdin] [<env-file>]"
     echo >&2 "Maybe this plugin doesn't support your version of Nushell"
     echo >&2 "Please consider creating an issue at"
     echo >&2 "https://github.com/tesujimath/nu_plugin_bash_env/issues"
@@ -418,52 +162,36 @@ function bad_usage() {
 }
 
 # process args
-unset stdio
-unset standalone_hello
-unset standalone_sig
-unset standalone_to_json
+unset stdinval
+declare -a exports
+exports=()
+unset path
 while test -n "$1"; do
     case "$1" in
-    --stdio)
-        stdio=1
-        ;;
-    --standalone)
-        case "$2" in
-        hello)
-            standalone_hello=1
-            shift
-            ;;
-        sig)
-            standalone_sig=1
-            shift
-            ;;
-        to-json)
-            standalone_to_json="$3"
-            shift 2
-            ;;
-        *)
-            echo >&2 "unsupported standalone operation: $2"
+    --stdin)
+        test -z "$stdinval" || {
+            bad_usage "repeated --stdio"
             exit 1
-            ;;
-        esac
+        }
+        stdinval="$(cat)"
+        ;;
+    --export)
+        test "${#exports[@]}" -eq 0 || {
+            bad_usage "repeated --export"
+            exit 1
+        }
+        IFS=, read -r -a exports <<<"$2"
+        shift
         ;;
     *)
-        bad_usage "unexpected arg: $1"
-        exit 1
+        test -z "$path" || {
+            bad_usage "repeated path"
+            exit 1
+        }
+        path="$1"
         ;;
     esac
     shift
 done
 
-if test -n "$stdio"; then
-    run_as_plugin
-elif test -n "$standalone_sig"; then
-    send_signature 99
-elif test -n "$standalone_hello"; then
-    send_hello
-elif test -n "$standalone_to_json"; then
-    declare -a _exports
-    eval_and_or_source_then_send_environment 99 "$standalone_to_json" "${_exports[@]}"
-else
-    bad_usage "need --stdio or --to-json"
-fi
+eval_and_or_source_then_send_environment "$stdinval" "$path" "${exports[@]}"
