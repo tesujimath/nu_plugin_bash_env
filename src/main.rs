@@ -43,13 +43,13 @@ impl PluginCommand for BashEnv {
         "bash-env"
     }
 
-    fn usage(&self) -> &str {
+    fn description(&self) -> &str {
         "get environment variables from Bash format file and/or stdin"
     }
 
     fn signature(&self) -> Signature {
         Signature::build(PluginCommand::name(self))
-            .usage("get environment variables from Bash format file and/or stdin")
+            .description("get environment variables from Bash format file and/or stdin")
             .category(Category::Env)
             .optional("path", SyntaxShape::String, "path to environment file")
             .named(
