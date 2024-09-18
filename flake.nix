@@ -31,7 +31,7 @@
           nu_plugin_bash_env = pkgs.rustPlatform.buildRustPackage
             rec {
               pname = "nu_plugin_bash_env";
-              version = "0.13.0";
+              version = "0.14.1";
 
               src = pkgs.fetchFromGitHub {
                 owner = "tesujimath";

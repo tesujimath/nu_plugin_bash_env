@@ -28,7 +28,7 @@ The following versions are compatible.
 |    0.95 |          0.11.0 |
 |    0.96 |          0.12.1 |
 |    0.97 |          0.13.0 |
-|    0.98 |          0.14.0 |
+|    0.98 |          0.14.1 |
 
 If you find a new version of Nushell rejects this plugin as incompatible, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
 
