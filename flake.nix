@@ -37,7 +37,7 @@
                 owner = "tesujimath";
                 repo = pname;
                 rev = version;
-                sha256 = "sha256-fWFBGeNqrJj+fT8EusS8VhxoCmncqhQUplPEHOJlqRA=";
+                sha256 = "sha256-tXpO6W52MXbDTXqnBdBmON0f5wcu0cYQ96ndxknt6Os=";
               };
 
               cargoHash = "sha256-AIdjurbZEgi6lDefLu/zA18rfBTLtsBvCiLGPZOnsNk=";
