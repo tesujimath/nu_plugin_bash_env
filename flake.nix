@@ -28,33 +28,33 @@
             (builtins.replaceStrings [ "jq" "(cat)" " sed " ] [ "${pkgs.jq}/bin/jq" "(${pkgs.coreutils}/bin/cat)" " ${pkgs.gnused}/bin/sed " ]
               (builtins.readFile ./scripts/bash_env.sh));
 
-          nu_plugin_bash_env = pkgs.rustPlatform.buildRustPackage
-            rec {
-              pname = "nu_plugin_bash_env";
-              version = "0.14.1";
+          nu_plugin_bash_env =
+            let cargoConfig = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+            in
+            pkgs.rustPlatform.buildRustPackage
+              {
+                pname = "nu_plugin_bash_env";
+                version = cargoConfig.package.version;
 
-              src = pkgs.fetchFromGitHub {
-                owner = "tesujimath";
-                repo = pname;
-                rev = version;
-                sha256 = "sha256-tXpO6W52MXbDTXqnBdBmON0f5wcu0cYQ96ndxknt6Os=";
+                src = ./.;
+
+                cargoLock = {
+                  lockFile = ./Cargo.lock;
+                };
+
+                meta = with pkgs.lib; {
+                  description = "A Bash environment plugin for Nushell";
+                  homepage = "https://github.com/tesujimath/nu_plugin_bash_env";
+                  license = licenses.mit;
+                  maintainers = [ maintainers.tailhook ];
+                };
+
+                buildInputs = [ pkgs.makeWrapper ];
+
+                postFixup = ''
+                  wrapProgram $out/bin/nu_plugin_bash_env --set NU_PLUGIN_BASH_ENV_SCRIPT ${nu_plugin_bash_env_script}/bin/nu_plugin_bash_env_script
+                '';
               };
-
-              cargoHash = "sha256-jh2iOnKHhSWMv5ICbBytVTUloKIYhAPNdHJW7vrFfKY=";
-
-              meta = with pkgs.lib; {
-                description = "A Bash environment plugin for Nushell";
-                homepage = "https://github.com/tesujimath/nu_plugin_bash_env";
-                license = licenses.mit;
-                maintainers = [ maintainers.tailhook ];
-              };
-
-              buildInputs = [ pkgs.makeWrapper ];
-
-              postFixup = ''
-                wrapProgram $out/bin/nu_plugin_bash_env --set NU_PLUGIN_BASH_ENV_SCRIPT ${nu_plugin_bash_env_script}/bin/nu_plugin_bash_env_script
-              '';
-            };
         in
         with pkgs;
         {
