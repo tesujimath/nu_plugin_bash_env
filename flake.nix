@@ -3,11 +3,18 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
     rust-overlay.url = "github:oxalica/rust-overlay";
+
     flake-utils.url = "github:numtide/flake-utils";
+
+    bash-env-json = {
+      url = "github:tesujimath/bash-env-json/main";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, rust-overlay, flake-utils }:
+  outputs = { nixpkgs, rust-overlay, flake-utils, bash-env-json, ... }:
     flake-utils.lib.eachDefaultSystem
       (system:
         let
@@ -17,16 +24,16 @@
             inherit system overlays;
           };
 
+          flakePkgs = {
+            bash-env-json = bash-env-json.packages.${system}.default;
+          };
+
           # cargo-nightly based on https://github.com/oxalica/rust-overlay/issues/82
           nightly = pkgs.rust-bin.selectLatestNightlyWith (t: t.default);
           cargo-nightly = pkgs.writeShellScriptBin "cargo-nightly" ''
             export RUSTC="${nightly}/bin/rustc";
             exec "${nightly}/bin/cargo" "$@"
           '';
-
-          nu_plugin_bash_env_script = pkgs.writeShellScriptBin "nu_plugin_bash_env_script"
-            (builtins.replaceStrings [ "jq" "(cat)" " sed " ] [ "${pkgs.jq}/bin/jq" "(${pkgs.coreutils}/bin/cat)" " ${pkgs.gnused}/bin/sed " ]
-              (builtins.readFile ./scripts/bash_env.sh));
 
           nu_plugin_bash_env =
             let cargoConfig = builtins.fromTOML (builtins.readFile ./Cargo.toml);
@@ -49,10 +56,13 @@
                   maintainers = [ maintainers.tailhook ];
                 };
 
-                buildInputs = [ pkgs.makeWrapper ];
+                buildInputs = [
+                  pkgs.makeWrapper
+                  flakePkgs.bash-env-json
+                ];
 
                 postFixup = ''
-                  wrapProgram $out/bin/nu_plugin_bash_env --set NU_PLUGIN_BASH_ENV_SCRIPT ${nu_plugin_bash_env_script}/bin/nu_plugin_bash_env_script
+                  wrapProgram $out/bin/nu_plugin_bash_env --set NU_PLUGIN_BASH_ENV_JSON ${flakePkgs.bash-env-json}/bin/bash-env-json
                 '';
               };
         in

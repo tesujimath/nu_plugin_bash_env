@@ -8,11 +8,11 @@ use nu_protocol::{
     Type, Value,
 };
 use once_cell::sync::OnceCell;
-use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::{
-    env, fs,
+    collections::{HashMap, HashSet},
+    concat, env, fs,
     io::Write,
     os::unix::fs::PermissionsExt,
     path::{Path, PathBuf},
@@ -154,18 +154,19 @@ fn bash_env(
     export: Vec<String>,
     cwd: String,
 ) -> anyhow::Result<Value> {
-    let script_path = bash_env_script_path();
+    let script_path = bash_env_json_path();
     let mut argv: Vec<_> = [script_path].into();
-    if stdin.is_some() {
-        argv.push("--stdin");
+
+    // we no longer support both stdin and path at the same time
+    if stdin.is_some() && path.is_some() {
+        return Err(anyhow!(
+            "both stdin and path at the same time is no longer supported"
+        ));
     }
+
     if let Some(ref path) = path {
         argv.push(path.as_str());
     }
-    let exports =
-        itertools::Itertools::intersperse(export.into_iter(), ",".to_string()).collect::<String>();
-    argv.push("--export");
-    argv.push(exports.as_str());
 
     trace!("Popen::create({:?})", &argv);
 
@@ -193,19 +194,49 @@ fn bash_env(
             .with_context(|| "stderr.write_all()")?;
     }
 
-    match serde_json::from_str(out.as_ref().unwrap())
-        .with_context(|| "serde_json::from_reader()")?
-    {
-        BashEnvResult::Env(env) => Ok(create_record(env, input_span, creation_site_span)),
-        BashEnvResult::Error(msg) => Err(anyhow!(msg)),
+    let BashEnvResult {
+        env,
+        shellvars,
+        error,
+    } = serde_json::from_str(out.as_ref().unwrap()).with_context(|| "serde_json::from_reader()")?;
+
+    if let Some(msg) = error {
+        Err(anyhow!(msg.clone()))
+    } else if let (Some(env), Some(shellvars)) = (env, shellvars) {
+        Ok(create_record(
+            env,
+            shellvars,
+            export,
+            input_span,
+            creation_site_span,
+        ))
+    } else {
+        Err(anyhow!("unexpected result from bash-env-json"))
     }
 }
 
-fn create_record(env: Vec<KV>, input_span: Span, creation_site_span: Span) -> Value {
-    let cols = env.iter().map(|kv| kv.k.clone()).collect::<Vec<_>>();
+fn create_record(
+    env: HashMap<String, String>,
+    shellvars: HashMap<String, String>,
+    export: Vec<String>,
+    input_span: Span,
+    creation_site_span: Span,
+) -> Value {
+    let export: HashSet<_> = export.iter().collect();
+    let exported_shellvars = shellvars
+        .into_iter()
+        .filter(|(k, _v)| export.contains(k))
+        // .map(|(k, v)| (k.clone(), v.clone()))
+        .collect::<HashMap<_, _>>();
+    let cols = env
+        .iter()
+        .chain(exported_shellvars.iter())
+        .map(|(k, _v)| k.clone())
+        .collect::<Vec<_>>();
     let vals = env
         .iter()
-        .map(|kv| Value::string(kv.v.clone(), Span::unknown()))
+        .chain(exported_shellvars.iter())
+        .map(|(_k, v)| Value::string(v.clone(), Span::unknown()))
         .collect::<Vec<_>>();
     Value::record(
         Record::from_raw_cols_vals(cols, vals, input_span, creation_site_span).unwrap(),
@@ -214,9 +245,10 @@ fn create_record(env: Vec<KV>, input_span: Span, creation_site_span: Span) -> Va
 }
 
 #[derive(Serialize, Deserialize)]
-enum BashEnvResult {
-    Env(Vec<KV>),
-    Error(String),
+struct BashEnvResult {
+    env: Option<HashMap<String, String>>,
+    shellvars: Option<HashMap<String, String>>,
+    error: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -243,7 +275,7 @@ fn main() {
 
     // prefer to take the path from the environment variable, falling back to writing a temporary file
     // with contents taken from the embedded script
-    let script_path_env_var = "NU_PLUGIN_BASH_ENV_SCRIPT";
+    let script_path_env_var = "NU_PLUGIN_BASH_ENV_JSON";
     let script_path_from_env = env::var(script_path_env_var).ok();
     #[allow(unused_assignments)]
     let mut tempdir: Option<TempDir> = None;
@@ -259,7 +291,7 @@ fn main() {
         }
     };
 
-    BASH_ENV_SCRIPT_PATH.get_or_init(|| script_path);
+    BASH_ENV_JSON_PATH.get_or_init(|| script_path);
 
     serve_plugin(&BashEnvPlugin, JsonSerializer);
 
@@ -271,30 +303,26 @@ fn main() {
 }
 
 fn extract_embedded_script(tempdir: &TempDir) -> String {
-    let script = "bash_env.sh";
-    let path = tempdir.path().join(script).to_path_buf();
-    fs::write(&path, Scripts::get(script).unwrap().data.as_ref()).unwrap();
+    const SCRIPT: &str = "bash-env-json";
+    let out_path = tempdir.path().join(SCRIPT).to_path_buf();
+    let script_body = include_str!(concat!(env!("OUT_DIR"), "/bash-env-json/bash-env-json"));
+    fs::write(&out_path, script_body).unwrap();
 
     // make executable
-    let mut perms = fs::metadata(&path)
-        .unwrap_or_else(|e| panic!("metadata({:?}): {}", &path, e))
+    let mut perms = fs::metadata(&out_path)
+        .unwrap_or_else(|e| panic!("metadata({:?}): {}", &out_path, e))
         .permissions();
     perms.set_mode(0o755);
-    fs::set_permissions(&path, perms)
-        .unwrap_or_else(|e| panic!("set_permissions({:?}): {}", &path, e));
+    fs::set_permissions(&out_path, perms)
+        .unwrap_or_else(|e| panic!("set_permissions({:?}): {}", &out_path, e));
 
-    let path = path.into_os_string().into_string().unwrap();
-    info!("extracted {} into {}", script, &path);
+    let path = out_path.into_os_string().into_string().unwrap();
+    info!("extracted {} into {}", SCRIPT, &path);
     path
 }
 
-fn bash_env_script_path() -> &'static str {
-    BASH_ENV_SCRIPT_PATH.get().unwrap()
+fn bash_env_json_path() -> &'static str {
+    BASH_ENV_JSON_PATH.get().unwrap()
 }
 
-static BASH_ENV_SCRIPT_PATH: OnceCell<String> = OnceCell::new();
-
-// embed the bash script
-#[derive(Embed)]
-#[folder = "scripts"]
-struct Scripts;
+static BASH_ENV_JSON_PATH: OnceCell<String> = OnceCell::new();

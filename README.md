@@ -29,6 +29,7 @@ The following versions are compatible.
 |    0.96 |          0.12.1 |
 |    0.97 |          0.13.0 |
 |    0.98 |          0.14.2 |
+|    0.98 |          0.15.0 |
 
 If you find a new version of Nushell rejects this plugin as incompatible, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
 
@@ -37,6 +38,8 @@ If you find a new version of Nushell rejects this plugin as incompatible, please
 The script uses `jq` for output formatting. Previous versions required at least `jq` version `1.7`, but that may be no longer the case.
 
 Also I suspect at least Bash version `5.1`.
+
+Since version `0.15.0`, this plugin uses [`bash-env-json`](https://github.com/tesujimath/bash-env-json) instead of the previously bundled `bash_env.sh` script.  However, this is fetched and embedded at build time, so there is no difference at runtime.
 
 ## Examples
 
@@ -132,7 +135,7 @@ Prior to 0.13.0 this plugin was written in Bash, with the Nu plugin protocol don
 
 Since 0.13.0, the plugin is written in Rust, with the much simplified Bash script embedded.
 
-By default the embedded Bash script is extracted at runtime into a temporary directory.  This behaviour may be overridden by setting the ``NU_PLUGIN_BASH_ENV_SCRIPT` environment variable, which is then expected to resolve to the path of the pre-installed script.
+By default the embedded Bash script is extracted at runtime into a temporary directory.  This behaviour may be overridden by setting the ``NU_PLUGIN_BASH_ENV_JSON` environment variable, which is then expected to resolve to the path of the pre-installed script.
 
 ## Logging
 
