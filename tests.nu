@@ -25,13 +25,6 @@ def test_export_shell_variables [] {
 }
 
 #[test]
-def test_export_shell_variables_missing [] {
-  let actual = echo "A=123" | bash-env --export [A B]
-  let expected = { A: "123" B: "" }
-  assert equal $actual $expected
-}
-
-#[test]
 def test_shell_variables_from_file [] {
   let actual = bash-env tests/shell-variables.env
   let expected = { B: "exported" }
@@ -77,25 +70,16 @@ def test_nasty_values_from_file [] {
   assert equal $actual $expected
 }
 
-#[test]
-def test_mixed [] {
-  let actual = echo "export A=override-a C=sea" | bash-env tests/simple.env
-  let expected = { A: "override-a" B: "b" C: "sea" }
-  assert equal $actual $expected
-}
-
 export def run_bash_env_tests [] {
   test_echo
   test_not_exported
   test_export_shell_variables
-  test_export_shell_variables_missing
   test_shell_variables_from_file
   test_export_shell_variables_from_file
   test_empty_value
   test_simple_file
   test_cat_simple_file
   test_nasty_values_from_file
-  test_mixed
 
   print "All tests passed"
 }

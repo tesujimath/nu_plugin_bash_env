@@ -946,7 +946,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_bash_env"
-version = "0.14.2"
+version = "0.15.0"
 dependencies = [
  "anyhow",
  "itertools 0.13.0",

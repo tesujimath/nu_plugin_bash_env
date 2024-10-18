@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-const BASH_ENV_JSON_VERSION: &str = "0.6.0";
+const BASH_ENV_JSON_VERSION: &str = "0.6.1";
 
 fn fetch_bash_env_json() -> Option<PathBuf> {
     let out_dir: PathBuf = env::var("OUT_DIR").unwrap().into();

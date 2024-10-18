@@ -29,6 +29,7 @@ The following versions are compatible.
 |    0.96 |          0.12.1 |
 |    0.97 |          0.13.0 |
 |    0.98 |          0.14.2 |
+|    0.98 |          0.15.0 |
 
 If you find a new version of Nushell rejects this plugin as incompatible, please report an [issue](https://github.com/tesujimath/nu_plugin_bash_env/issues).
 
@@ -37,6 +38,8 @@ If you find a new version of Nushell rejects this plugin as incompatible, please
 The script uses `jq` for output formatting. Previous versions required at least `jq` version `1.7`, but that may be no longer the case.
 
 Also I suspect at least Bash version `5.1`.
+
+Since version `0.15.0`, this plugin uses [`bash-env-json`](https://github.com/tesujimath/bash-env-json) instead of the previously bundled `bash_env.sh` script.  However, this is fetched and embedded at build time, so there is no difference at runtime.
 
 ## Examples
 

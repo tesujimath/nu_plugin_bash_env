@@ -156,9 +156,14 @@ fn bash_env(
 ) -> anyhow::Result<Value> {
     let script_path = bash_env_json_path();
     let mut argv: Vec<_> = [script_path].into();
-    if stdin.is_some() {
-        argv.push("--stdin");
+
+    // we no longer support both stdin and path at the same time
+    if stdin.is_some() && path.is_some() {
+        return Err(anyhow!(
+            "both stdin and path at the same time is no longer supported"
+        ));
     }
+
     if let Some(ref path) = path {
         argv.push(path.as_str());
     }
