@@ -11,7 +11,7 @@ use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use shellexpand::tilde;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     concat, env, fs,
     io::Write,
     os::unix::fs::PermissionsExt,
@@ -189,16 +189,19 @@ fn bash_env(
             .with_context(|| "stderr.write_all()")?;
     }
 
-    let result: BashEnvResult =
-        serde_json::from_str(out.as_ref().unwrap()).with_context(|| "serde_json::from_reader()")?;
+    let BashEnvResult {
+        env,
+        shellvars,
+        error,
+    } = serde_json::from_str(out.as_ref().unwrap()).with_context(|| "serde_json::from_reader()")?;
 
-    if let Some(msg) = &result.error {
+    if let Some(msg) = error {
         Err(anyhow!(msg.clone()))
-    } else if let (Some(env), Some(shellvars)) = (&result.env, &result.shellvars) {
+    } else if let (Some(env), Some(shellvars)) = (env, shellvars) {
         Ok(create_record(
             env,
             shellvars,
-            &export,
+            export,
             input_span,
             creation_site_span,
         ))
@@ -208,15 +211,26 @@ fn bash_env(
 }
 
 fn create_record(
-    env: &HashMap<String, String>,
-    _shellvars: &HashMap<String, String>,
-    _export: &[String],
+    env: HashMap<String, String>,
+    shellvars: HashMap<String, String>,
+    export: Vec<String>,
     input_span: Span,
     creation_site_span: Span,
 ) -> Value {
-    let cols = env.iter().map(|(k, _v)| k.clone()).collect::<Vec<_>>();
+    let export: HashSet<_> = export.iter().collect();
+    let exported_shellvars = shellvars
+        .into_iter()
+        .filter(|(k, _v)| export.contains(k))
+        // .map(|(k, v)| (k.clone(), v.clone()))
+        .collect::<HashMap<_, _>>();
+    let cols = env
+        .iter()
+        .chain(exported_shellvars.iter())
+        .map(|(k, _v)| k.clone())
+        .collect::<Vec<_>>();
     let vals = env
         .iter()
+        .chain(exported_shellvars.iter())
         .map(|(_k, v)| Value::string(v.clone(), Span::unknown()))
         .collect::<Vec<_>>();
     Value::record(
