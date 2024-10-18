@@ -952,7 +952,7 @@ dependencies = [
 
 [[package]]
 name = "nu_plugin_bash_env"
-version = "0.16.0"
+version = "0.16.1"
 dependencies = [
  "anyhow",
  "itertools 0.13.0",
