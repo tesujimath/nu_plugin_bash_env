@@ -132,7 +132,7 @@ Prior to 0.13.0 this plugin was written in Bash, with the Nu plugin protocol don
 
 Since 0.13.0, the plugin is written in Rust, with the much simplified Bash script embedded.
 
-By default the embedded Bash script is extracted at runtime into a temporary directory.  This behaviour may be overridden by setting the ``NU_PLUGIN_BASH_ENV_SCRIPT` environment variable, which is then expected to resolve to the path of the pre-installed script.
+By default the embedded Bash script is extracted at runtime into a temporary directory.  This behaviour may be overridden by setting the ``NU_PLUGIN_BASH_ENV_JSON` environment variable, which is then expected to resolve to the path of the pre-installed script.
 
 ## Logging
 
