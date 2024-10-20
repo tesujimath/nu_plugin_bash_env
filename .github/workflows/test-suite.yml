@@ -8,6 +8,7 @@ on:
       - main
 env:
   NU_VERSION: 0.99.0
+  BASH_ENV_JSON_VERSION: 0.7.0
 
 jobs:
   test:
@@ -29,8 +30,18 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Build
         run: cargo build
-      - name: Run Tests
+      - name: Run Plugin Tests
         run: |
           export PATH=./nu-${NU_VERSION}-x86_64-unknown-linux-gnu:$PATH
           nu --no-config-file --no-history -c "plugin add --plugin-config plugin.msgpackz target/debug/nu_plugin_bash_env"
           nu --no-config-file --no-history -c "plugin use --plugin-config plugin.msgpackz bash_env ; use tests.nu run_bash_env_tests ; run_bash_env_tests"
+      - name: Download bash-env-json $BASH_ENV_JSON_VERSION
+        run: |
+          curl -L https://github.com/tesujimath/bash-env-json/archive/refs/tags/${BASH_ENV_JSON_VERSION}.tar.gz | tar xzf -
+      - name: Run Module Tests
+        run: |
+          # note that Nushell doesn't like relative paths on the $PATH
+          export PATH=$(pwd)/bash-env-json-${BASH_ENV_JSON_VERSION}:./nu-${NU_VERSION}-x86_64-unknown-linux-gnu:$PATH
+          which bash-env-json
+          nu --no-config-file --no-history -c "use bash-env.nu ; use tests.nu run_bash_env_tests ; run_bash_env_tests"
+          nu --no-config-file --no-history -c "use bash-env.nu ; use extra-module-tests.nu ; extra-module-tests"

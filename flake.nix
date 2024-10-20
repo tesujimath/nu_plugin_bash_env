@@ -9,7 +9,7 @@
     flake-utils.url = "github:numtide/flake-utils";
 
     bash-env-json = {
-      url = "github:tesujimath/bash-env-json?ref=refs/tags/0.6.1";
+      url = "github:tesujimath/bash-env-json/main";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -24,10 +24,27 @@
             inherit system overlays;
           };
 
-          inherit (pkgs) rust-bin writeShellScriptBin;
+          inherit (builtins) readFile;
+          inherit (pkgs) rust-bin symlinkJoin writeShellScriptBin writeTextFile;
           flakePkgs = {
             bash-env-json = bash-env-json.packages.${system}.default;
           };
+
+          bash-env-module = writeTextFile
+            {
+              name = "bash-env.nu";
+              text = readFile ./bash-env.nu;
+              destination = "/bash-env.nu";
+            };
+
+          bash-env-module-with-bash-env-json = symlinkJoin
+            {
+              name = "bash-env.nu-with-bash-env-json";
+              paths = [
+                bash-env-module
+                flakePkgs.bash-env-json
+              ];
+            };
 
           # cargo-nightly based on https://github.com/oxalica/rust-overlay/issues/82
           nightly = rust-bin.selectLatestNightlyWith (t: t.default);
@@ -38,8 +55,9 @@
 
           nu_plugin_bash_env =
             let
+              inherit (builtins) fromTOML readFile;
               inherit (pkgs) lib makeWrapper rustPlatform;
-              cargoConfig = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+              cargoConfig = fromTOML (readFile ./Cargo.toml);
             in
             rustPlatform.buildRustPackage
               {
@@ -97,7 +115,11 @@
               ];
             };
 
-          packages.default = nu_plugin_bash_env;
+          packages = {
+            default = bash-env-module-with-bash-env-json;
+            module = bash-env-module-with-bash-env-json;
+            plugin = nu_plugin_bash_env;
+          };
         }
       );
 }
